@@ -1,0 +1,66 @@
+﻿@page "/categoria/create"
+@using Microsoft.EntityFrameworkCore
+@using GestaoLoja.Data
+@using GestaoLoja.Entities
+@inject IDbContextFactory<GestaoLoja.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Criar Categoria</PageTitle>
+
+<h1>Criar Categoria</h1>
+
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <EditForm method="post" Model="Categoria" OnValidSubmit="AddCategoria" FormName="create" Enhance>
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger"/>
+            <div class="mb-3">
+                <label for="nome" class="form-label">Nome da Categoria:</label> 
+                <InputText id="nome" @bind-Value="Categoria.Nome" class="form-control"/> 
+                <ValidationMessage For="() => Categoria.Nome" class="text-danger" /> 
+            </div>    
+            <div class="mb-3">
+                <label for="categoriapai" class="form-label">Categoria Pai (Opcional):</label>
+                <InputSelect id="categoriapai" @bind-Value="Categoria.CategoriaPaiId" class="form-control">
+                    <option value="">-- Nenhuma (É uma Categoria Principal) --</option>
+                    @foreach (var cat in ListaCategorias)
+                    {
+                        <option value="@cat.Id">@cat.Nome</option>
+                    }
+                </InputSelect>
+                <div class="form-text">Selecione apenas se esta for uma sub-categoria (ex: "Ouro" dentro de "Moedas").</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Ordem de Exibição:</label>
+                <InputNumber @bind-Value="Categoria.Ordem" class="form-control" />
+            </div>
+            <button type="submit" class="btn btn-primary">Criar</button>
+            <a href="/categoria" class="btn btn-secondary">Voltar</a>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    public Categoria Categoria { get; set; } = new();
+
+    // Lista para preencher a dropdown
+    public List<Categoria> ListaCategorias { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Carregamos todas as categorias para poder escolher uma como Pai
+        ListaCategorias = await context.Categorias.OrderBy(c => c.Nome).ToListAsync();
+    }
+
+    public async Task AddCategoria()
+    {
+        using var context = DbFactory.CreateDbContext();
+        context.Categorias.Add(Categoria);
+        await context.SaveChangesAsync();
+        NavigationManager.NavigateTo("/categoria");
+    }
+}

@@ -1,0 +1,102 @@
+﻿@page "/categoria/delete"
+@using Microsoft.EntityFrameworkCore
+@using GestaoLoja.Entities
+@using GestaoLoja.Data
+@using Microsoft.AspNetCore.Authorization
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+@attribute [Authorize(Roles = "Administrador,Funcionário")]
+
+<PageTitle>Apagar Categoria</PageTitle>
+
+<h1>Apagar Categoria</h1>
+
+@if (Categoria is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="alert alert-danger">
+        <h3>Tem a certeza?</h3>
+        <p>Quer apagar a categoria <strong>@Categoria.Nome</strong>?</p>
+    </div>
+
+    @if (TemProdutosAssociados)
+    {
+        <div class="card border-danger mb-3">
+            <div class="card-body text-danger">
+                <h5 class="card-title"><i class="bi bi-exclamation-triangle-fill"></i> Impossível Apagar</h5>
+                <p class="card-text">
+                    Esta categoria tem <strong>@NumeroProdutos</strong> produtos associados.
+                    Não pode apagar uma categoria que não esteja vazia.
+                </p>
+                <p><strong>Solução:</strong> Mova os produtos para outra categoria ou apague-os primeiro.</p>
+            </div>
+        </div>
+        <a href="/categoria" class="btn btn-secondary">Voltar</a>
+    }
+    else
+    {
+        <dl class="row">
+            <dt class="col-sm-2">Nome</dt>
+            <dd class="col-sm-10">@Categoria.Nome</dd>
+        </dl>
+
+        <EditForm Model="Categoria" OnValidSubmit="DeleteCategoria" FormName="delete" Enhance>
+            <input type="hidden" name="Id" value="@Id" />
+
+            <button type="submit" class="btn btn-danger">Confirmar Apagar</button>
+            <a href="/categoria" class="btn btn-secondary">Cancelar</a>
+        </EditForm>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery]
+    public int Id { get; set; }
+
+    // REMOVIDO [SupplyParameterFromForm] para evitar conflitos
+    public Categoria? Categoria { get; set; }
+
+    public bool TemProdutosAssociados { get; set; } = false;
+    public int NumeroProdutos { get; set; } = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+
+        // Carregar a categoria para mostrar no ecrã
+        Categoria = await context.Categorias.FirstOrDefaultAsync(m => m.Id == Id);
+
+        if (Categoria is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+            return;
+        }
+
+        // Verificar se existem produtos nesta categoria (Segurança)
+        NumeroProdutos = await context.Produtos.CountAsync(p => p.CategoriaId == Id);
+        TemProdutosAssociados = (NumeroProdutos > 0);
+    }
+
+    public async Task DeleteCategoria()
+    {
+        if (TemProdutosAssociados) return;
+
+        using var context = DbFactory.CreateDbContext();
+
+        // APAGAR COM SEGURANÇA:
+        // Procurar o registo pelo ID na hora de apagar, em vez de confiar no formulário
+        var categoriaParaApagar = await context.Categorias.FindAsync(Id);
+
+        if (categoriaParaApagar != null)
+        {
+            context.Categorias.Remove(categoriaParaApagar);
+            await context.SaveChangesAsync();
+        }
+
+        NavigationManager.NavigateTo("/categoria");
+    }
+}

@@ -1,0 +1,88 @@
+﻿@page "/categoria/edit"
+@using Microsoft.EntityFrameworkCore
+@using GestaoLoja.Entities
+@using GestaoLoja.Data
+@inject IDbContextFactory<GestaoLoja.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Editar Categoria</PageTitle>
+
+<h1>Editar Categoria</h1>
+
+<hr />
+@if (Categoria is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-6">
+            <EditForm method="post" Model="Categoria" OnValidSubmit="UpdateCategoria" FormName="edit" Enhance>
+                <DataAnnotationsValidator />
+                <ValidationSummary class="text-danger" />
+                <input type="hidden" name="Categoria.Id" value="@Categoria.Id" />
+
+                <div class="mb-3">
+                    <label class="form-label">Nome:</label>
+                    <InputText @bind-Value="Categoria.Nome" class="form-control" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Categoria Pai:</label>
+                    <InputSelect @bind-Value="Categoria.CategoriaPaiId" class="form-control">
+                        <option value="">-- Nenhuma (Principal) --</option>
+                        @foreach (var cat in ListaCategorias)
+                        {
+                            @if (cat.Id != Categoria.Id)
+                            {
+                                <option value="@cat.Id">@cat.Nome</option>
+                            }
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Ordem:</label>
+                    <InputNumber @bind-Value="Categoria.Ordem" class="form-control" />
+                </div>
+
+                <button type="submit" class="btn btn-primary">Guardar</button>
+                <a href="/categoria" class="btn btn-secondary">Cancelar</a>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery]
+    public int Id { get; set; }
+
+    [SupplyParameterFromForm]
+    public Categoria? Categoria { get; set; }
+
+    public List<Categoria> ListaCategorias { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+
+        // Carregar categorias para a dropdown
+        ListaCategorias = await context.Categorias.OrderBy(c => c.Nome).ToListAsync();
+
+        if (Categoria is null)
+        {
+            Categoria = await context.Categorias.FirstOrDefaultAsync(m => m.Id == Id);
+        }
+
+        if (Categoria is null) NavigationManager.NavigateTo("notfound");
+    }
+
+    public async Task UpdateCategoria()
+    {
+        using var context = DbFactory.CreateDbContext();
+        context.Attach(Categoria!).State = EntityState.Modified;
+        await context.SaveChangesAsync();
+        NavigationManager.NavigateTo("/categoria");
+    }
+}

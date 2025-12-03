@@ -1,0 +1,207 @@
+﻿@page "/produtos/edit"
+@using Microsoft.EntityFrameworkCore
+@using GestaoLoja.Entities
+@using GestaoLoja.Data
+@using Microsoft.AspNetCore.Authorization
+@inject IDbContextFactory<GestaoLoja.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+@attribute [Authorize(Roles = "Administrador, Funcionario")]
+
+<PageTitle>Gerir Produto</PageTitle>
+
+<h1>Gerir / Aprovar Produto</h1>
+<hr />
+
+@if (Produto is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-6">
+            <EditForm method="post" Model="Produto" OnValidSubmit="UpdateProduto" FormName="edit" Enhance>
+                <DataAnnotationsValidator />
+                <ValidationSummary role="alert" class="text-danger" />
+
+                <input type="hidden" name="Produto.Id" value="@Produto.Id" />
+                <input type="hidden" name="Produto.FornecedorId" value="@Produto.FornecedorId" />
+
+                <div class="card mb-4">
+                    <div class="card-header bg-light">Dados do Fornecedor</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Nome do Produto:</label>
+                            <InputText @bind-Value="Produto.Nome" class="form-control" />
+                            <ValidationMessage For="() => Produto.Nome" class="text-danger" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Descrição:</label>
+                            <InputTextArea @bind-Value="Produto.Descricao" class="form-control" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Categoria:</label>
+                            <InputSelect @bind-Value="Produto.CategoriaId" class="form-control">
+                                <option value="">-- Selecione --</option>
+                                @foreach (var cat in ListaCategorias)
+                                {
+                                    <option value="@cat.Id">@cat.Nome</option>
+                                }
+                            </InputSelect>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Imagem URL:</label>
+                            <InputText @bind-Value="Produto.ImageUrl" class="form-control" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4 border-primary">
+                    <div class="card-header bg-primary text-white">Definição de Preços e Aprovação</div>
+                    <div class="card-body">
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Preço Base (€):</label>
+                                <InputNumber @bind-Value="Produto.PrecoBase" class="form-control bg-light" readonly />
+                                <small class="text-muted">Definido pelo fornecedor</small>
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label fw-bold text-primary">Margem Lucro (0.00 - 1.00):</label>
+                                <InputNumber @bind-Value="Produto.MargemLucro" class="form-control border-primary" step="0.01" />
+                                <small class="text-muted">Ex: 0.20 = 20% de lucro</small>
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label fw-bold text-success">Preço Final (€):</label>
+                                <div class="form-control bg-success text-white fw-bold">
+                                    @Produto.PrecoFinal.ToString("C2")
+                                </div>
+                                <small class="text-muted">Base + (Base x Margem)</small>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Estado do Produto:</label>
+                            <InputSelect @bind-Value="Produto.Estado" class="form-control">
+                                @foreach (var estado in Enum.GetValues(typeof(EstadoProduto)))
+                                {
+                                    <option value="@estado">@estado</option>
+                                }
+                            </InputSelect>
+                            @if (Produto.Estado == EstadoProduto.Pendente)
+                            {
+                                <div class="text-warning small mt-1"><i class="bi bi-exclamation-triangle"></i> Este produto ainda não está visível na loja.</div>
+                            }
+                            else if (Produto.Estado == EstadoProduto.Ativo)
+                            {
+                                <div class="text-success small mt-1"><i class="bi bi-check-circle"></i> Produto visível para clientes.</div>
+                            }
+                        </div>
+
+                        <div class="card mb-4 border-secondary">
+                            <div class="card-header bg-secondary text-white">Logística e Disponibilização</div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Stock Disponível:</label>
+                                        <InputNumber @bind-Value="Produto.Stock" class="form-control" />
+                                    </div>
+
+                                    <div class="col-md-6 mb-3 d-flex align-items-center">
+                                        <div class="form-check form-switch fs-5">
+                                            <InputCheckbox @bind-Value="Produto.DisponivelParaVenda" class="form-check-input" id="flexSwitchCheckDefault" />
+                                            <label class="form-check-label" for="flexSwitchCheckDefault">Disponível para Venda?</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-muted small">
+                                    Se não estiver disponível para venda, o produto servirá apenas para "Listagem" (Showcase).
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-lg">Guardar Alterações</button>
+                    <a href="/produtos" class="btn btn-secondary btn-lg">Voltar</a>
+                </div>
+            </EditForm>
+        </div>
+
+        <div class="col-md-4">
+            @if (!string.IsNullOrEmpty(Produto.ImageUrl))
+            {
+                <div class="card">
+                    <div class="card-header">Imagem Atual</div>
+                    <div class="card-body text-center">
+                        <img src="@Produto.ImageUrl" class="img-fluid rounded" style="max-height: 300px;" />
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery]
+    public int Id { get; set; }
+
+    [SupplyParameterFromForm]
+    public Produto? Produto { get; set; }
+
+    public List<Categoria> ListaCategorias { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        ListaCategorias = await context.Categorias.ToListAsync();
+
+        if (Produto is null)
+        {
+            Produto = await context.Produtos.FirstOrDefaultAsync(m => m.Id == Id);
+        }
+
+        if (Produto is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+
+    public async Task UpdateProduto()
+    {
+        using var context = DbFactory.CreateDbContext();
+        context.Attach(Produto!).State = EntityState.Modified;
+
+        try
+        {
+            await context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!ProdutoExists(Produto!.Id))
+            {
+                NavigationManager.NavigateTo("notfound");
+            }
+            else
+            {
+                throw;
+            }
+        }
+
+        NavigationManager.NavigateTo("/produtos");
+    }
+
+    private bool ProdutoExists(int id)
+    {
+        using var context = DbFactory.CreateDbContext();
+        return context.Produtos.Any(e => e.Id == id);
+    }
+}

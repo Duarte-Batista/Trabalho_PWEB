@@ -1,0 +1,146 @@
+﻿@page "/categoria"
+@using Microsoft.EntityFrameworkCore
+@* @using Microsoft.AspNetCore.Components.QuickGrid *@
+@using GestaoLoja.Entities
+@using GestaoLoja.Data
+@using Microsoft.AspNetCore.Authorization
+@*@implements IAsyncDisposable *@
+@inject IDbContextFactory<GestaoLoja.Data.ApplicationDbContext> DbFactory
+
+@attribute [Authorize]
+
+<PageTitle>Categorias</PageTitle>
+
+<h1>Gestão de Categorias</h1>
+
+<div class="row mb-3">
+    <div class="col-md-5">
+        <input type="text" class="form-control"
+               @bind="TermoPesquisa"
+               @bind:event="oninput"
+               placeholder="Pesquisar por nome..." />
+    </div>
+
+    <div class="col-md-4 d-flex align-items-center">
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="checkPrincipais"
+                   @bind="MostrarSoPrincipais">
+            <label class="form-check-label" for="checkPrincipais">
+                Ver apenas Categorias Principais
+            </label>
+        </div>
+        <button class="btn btn-sm btn-secondary ms-2" @onclick="CarregarCategorias">Filtrar</button>
+    </div>
+
+    <div class="col-md-3 text-end">
+        <a href="categoria/create" class="btn btn-success">Nova Categoria</a>
+    </div>
+</div>
+
+@if (Categorias == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!Categorias.Any())
+{
+    <div class="alert alert-warning">Nenhuma categoria encontrada.</div>
+}
+else
+{
+    <table class="table table-bordered table-striped">
+        <thead>
+            <tr>
+                <th>Nome</th>
+                <th>Categoria Pai (Superior)</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var categoria in Categorias)
+            {
+                <tr>
+                    <td>@categoria.Nome</td>
+                    <td>
+                        @if (categoria.CategoriaPai != null)
+                        {
+                            <span>@categoria.CategoriaPai.Nome</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">- Principal -</span>
+                        }
+                    </td>
+                    <td>
+                        <AuthorizeView Roles="Administrador,Funcionário">
+                            <a href="categoria/edit?id=@categoria.Id">Editar</a> |
+                            <a href="categoria/delete?id=@categoria.Id">Apagar</a>
+                        </AuthorizeView>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <button class="btn btn-secondary" disabled="@(PaginaAtual == 1)" @onclick="PaginaAnterior">Anterior</button>
+        <span>Página @PaginaAtual de @TotalPaginas</span>
+        <button class="btn btn-secondary" disabled="@(PaginaAtual == TotalPaginas)" @onclick="PaginaSeguinte">Seguinte</button>
+    </div>
+}
+
+@code {
+    private List<Categoria>? Categorias;
+
+    // Filtros
+    private string TermoPesquisa { get; set; } = "";
+    private bool MostrarSoPrincipais { get; set; } = false;
+
+    // Paginação
+    private int PaginaAtual { get; set; } = 1;
+    private int TamanhoPagina { get; set; } = 10;
+    private int TotalItems { get; set; } = 0;
+    private int TotalPaginas => (int)Math.Ceiling((double)TotalItems / TamanhoPagina);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarCategorias();
+    }
+
+    // Método chamado ao filtrar ou mudar página
+    private async Task CarregarCategorias()
+    {
+        using var context = DbFactory.CreateDbContext();
+
+        var query = context.Categorias
+            .Include(c => c.CategoriaPai) // Carregar o nome do Pai
+            .AsQueryable();
+
+        // Filtros
+        if (!string.IsNullOrWhiteSpace(TermoPesquisa))
+        {
+            query = query.Where(c => c.Nome!.Contains(TermoPesquisa));
+        }
+
+        if (MostrarSoPrincipais)
+        {
+            query = query.Where(c => c.CategoriaPaiId == null);
+        }
+
+        // Contagem e Paginação
+        TotalItems = await query.CountAsync();
+
+        // Ajuste de segurança da página
+        if (TotalPaginas == 0) PaginaAtual = 1;
+        else if (PaginaAtual > TotalPaginas) PaginaAtual = TotalPaginas;
+
+        Categorias = await query
+            .OrderBy(c => c.CategoriaPaiId) // Agrupar por família
+            .ThenBy(c => c.Nome)
+            .Skip((PaginaAtual - 1) * TamanhoPagina)
+            .Take(TamanhoPagina)
+            .ToListAsync();
+    }
+
+    private async Task PaginaAnterior() { if (PaginaAtual > 1) { PaginaAtual--; await CarregarCategorias(); } }
+    private async Task PaginaSeguinte() { if (PaginaAtual < TotalPaginas) { PaginaAtual++; await CarregarCategorias(); } }
+    
+}

@@ -1,0 +1,186 @@
+﻿@page "/produtos"
+@using Microsoft.EntityFrameworkCore
+@using GestaoLoja.Entities
+@using GestaoLoja.Data
+@using Microsoft.AspNetCore.Authorization
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+@attribute [Authorize]
+
+<PageTitle>Produtos</PageTitle>
+
+<h1>Gestão de Produtos</h1>
+
+<div class="row mb-3 align-items-end">
+    <div class="col-md-4">
+        <input type="text" class="form-control"
+               @bind="TermoPesquisa"
+               @bind:event="oninput"
+               placeholder="Pesquisar por nome..." />
+    </div>
+
+    <div class="col-md-3">
+        <label class="form-label">Categoria:</label>
+        <select class="form-select" @bind="CategoriaIdFiltro">
+            <option value="0">Todas</option>
+            @foreach (var cat in CategoriasList)
+            {
+                <option value="@cat.Id">@cat.Nome</option>
+            }
+        </select>
+    </div>
+
+    <div class="col-md-2">
+        <button class="btn btn-primary w-100" @onclick="CarregarProdutos">
+            <i class="bi bi-filter"></i> Filtrar
+        </button>
+    </div>
+
+    <div class="col-md-3 text-end">
+        <a href="produtos/create" class="btn btn-success">
+            <i class="bi bi-plus-lg"></i> Novo
+        </a>
+    </div>
+</div>
+
+@if (Produtos == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!Produtos.Any())
+{
+    <div class="alert alert-warning">Nenhum produto encontrado com estes filtros.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Imagem</th>
+                    <th>Nome</th>
+                    <th>Categoria</th>
+                    <th class="text-center">Modo</th>
+                    <th class="text-center">Stock</th>
+                    <th class="text-end">Preço Final</th>
+                    <th class="text-center">Estado</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var produto in Produtos)
+                {
+                    <tr>
+                        <td>@produto.ImageUrl</td>
+                        <td>@produto.Nome</td>
+                        <td>@(produto.Categoria?.Nome ?? "-")</td>
+                        <td class="text-center">
+                            @if (produto.DisponivelParaVenda)
+                            {
+                                <span class="badge bg-success">Venda</span>
+                            }
+                            else
+                            {
+
+                                <span class="badge bg-info text-dark">Coleção</span>
+                            }
+                        </td>
+                        <td class="text-center">
+                            @(produto.DisponivelParaVenda? produto.Stock.ToString() : "-")
+                        </td>
+                        <td class="text-end">
+                            @(produto.DisponivelParaVenda? produto.PrecoFinal.ToString("C2") : "-")
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-secondary">@produto.Estado</span>
+                        </td>
+                        <td>
+                            <AuthorizeView Roles="Administrador,Funcionário">
+                                <a href="produtos/edit?id=@produto.Id" class="btn btn-sm btn-outline-primary">Editar</a>
+                                <a href="produtos/delete?id=@produto.Id" class="btn btn-sm btn-outline-danger">Apagar</a>
+                            </AuthorizeView>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <button class="btn btn-secondary" disabled="@(PaginaAtual == 1)" @onclick="PaginaAnterior">Anterior</button>
+        <span>Página @PaginaAtual de @TotalPaginas</span>
+        <button class="btn btn-secondary" disabled="@(PaginaAtual == TotalPaginas)" @onclick="PaginaSeguinte">Seguinte</button>
+    </div>
+}
+
+@code {
+    private List<Produto>? Produtos;
+    private List<Categoria> CategoriasList { get; set; } = new();
+
+    // Filtros
+    private string TermoPesquisa { get; set; } = "";
+    private int CategoriaIdFiltro { get; set; } = 0;
+
+    // Paginação
+    private int PaginaAtual { get; set; } = 1;
+    private int TamanhoPagina { get; set; } = 5; // Mostra 5 produtos por página
+    private int TotalItems { get; set; } = 0;
+    private int TotalPaginas => (int)Math.Ceiling((double)TotalItems / TamanhoPagina);
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Carregar categorias para o dropdown
+        using var context = DbFactory.CreateDbContext();
+        CategoriasList = await context.Categorias.ToListAsync();
+
+        await CarregarProdutos();
+    }
+
+    private async Task CarregarProdutos()
+    {
+        using var context = DbFactory.CreateDbContext();
+
+        // 1. Query Base
+        var query = context.Produtos.Include(p => p.Categoria).AsQueryable();
+
+        // 2. Aplicar Filtros
+        if (!string.IsNullOrWhiteSpace(TermoPesquisa))
+        {
+            query = query.Where(p => p.Nome.Contains(TermoPesquisa));
+        }
+
+        if (CategoriaIdFiltro > 0)
+        {
+            query = query.Where(p => p.CategoriaId == CategoriaIdFiltro);
+        }
+
+        // 3. Contar total para paginação
+        TotalItems = await query.CountAsync();
+
+        // 4. Aplicar Paginação (Skip/Take)
+        Produtos = await query
+            .OrderByDescending(p => p.Id)
+            .Skip((PaginaAtual - 1) * TamanhoPagina)
+            .Take(TamanhoPagina)
+            .ToListAsync();
+    }
+
+    private async Task PaginaAnterior()
+    {
+        if (PaginaAtual > 1)
+        {
+            PaginaAtual--;
+            await CarregarProdutos();
+        }
+    }
+
+    private async Task PaginaSeguinte()
+    {
+        if (PaginaAtual < TotalPaginas)
+        {
+            PaginaAtual++;
+            await CarregarProdutos();
+        }
+    }
+}

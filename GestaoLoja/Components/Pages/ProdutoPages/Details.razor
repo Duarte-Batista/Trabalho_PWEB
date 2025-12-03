@@ -1,0 +1,60 @@
+﻿@page "/produtos/details"
+@using Microsoft.EntityFrameworkCore
+@using GestaoLoja.Entities
+@inject IDbContextFactory<GestaoLoja.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Details</PageTitle>
+
+<h1>Details</h1>
+
+<div>
+    <h2>Produto</h2>
+    <hr />
+    @if (produto is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else {
+        <dl class="row">
+            <dt class="col-sm-2">Nome</dt>
+            <dd class="col-sm-10">@produto.Nome</dd>
+            <dt class="col-sm-2">Descricao</dt>
+            <dd class="col-sm-10">@produto.Descricao</dd>
+            <dt class="col-sm-2">PrecoBase</dt>
+            <dd class="col-sm-10">@produto.PrecoBase</dd>
+            <dt class="col-sm-2">MargemLucro</dt>
+            <dd class="col-sm-10">@produto.MargemLucro</dd>
+            <dt class="col-sm-2">ImageUrl</dt>
+            <dd class="col-sm-10">@produto.ImageUrl</dd>
+            <dt class="col-sm-2">Estado</dt>
+            <dd class="col-sm-10">@produto.Estado</dd>
+            <dt class="col-sm-2">CategoriaId</dt>
+            <dd class="col-sm-10">@produto.CategoriaId</dd>
+            <dt class="col-sm-2">FornecedorId</dt>
+            <dd class="col-sm-10">@produto.FornecedorId</dd>
+        </dl>
+        <div>
+            <a href="@($"/produtos/edit?id={produto.Id}")">Edit</a> |
+            <a href="@($"/produtos")">Back to List</a>
+        </div>
+    }
+</div>
+
+@code {
+    private Produto? produto;
+
+    [SupplyParameterFromQuery]
+    private int Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        produto = await context.Produtos.FirstOrDefaultAsync(m => m.Id == Id);
+
+        if (produto is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+}

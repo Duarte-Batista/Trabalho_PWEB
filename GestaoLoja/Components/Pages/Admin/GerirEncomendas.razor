@@ -1,0 +1,142 @@
+﻿@page "/admin/encomendas"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Authorization
+@using GestaoLoja.Entities
+@using GestaoLoja.Data
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+@attribute [Authorize(Roles = "Administrador,Funcionário")]
+
+<PageTitle>Gestão de Encomendas</PageTitle>
+
+<h1>Gestão de Encomendas</h1>
+
+@if (Encomendas == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!Encomendas.Any())
+{
+    <div class="alert alert-info">Não existem encomendas registadas.</div>
+}
+else
+{
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>#ID</th>
+                <th>Data</th>
+                <th>Cliente</th>
+                <th>Total</th>
+                <th>Estado</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var enc in Encomendas)
+            {
+                <tr>
+                    <td>@enc.Id</td>
+                    <td>@enc.Data.ToShortDateString()</td>
+                    <td>@(enc.Cliente?.Email ?? "Desconhecido")</td>
+                    <td class="fw-bold">@enc.ValorTotal.ToString("C2")</td>
+                    <td>
+                        @if (enc.Estado == "Pendente")
+                        {
+                            <span class="badge bg-warning text-dark">Pendente</span>
+                        }
+                        else if (enc.Estado == "Pago")
+                        {
+
+                            <span class="badge bg-info">Pago</span>
+                        }
+                        else if (enc.Estado == "Enviado")
+                        {
+
+                            <span class="badge bg-success">Enviado</span>
+                        }
+                        else if (enc.Estado == "Cancelado")
+                        {
+
+                            <span class="badge bg-danger">Cancelado</span>
+                        }
+                        else
+                        {
+
+                            <span>@enc.Estado</span>
+                        }
+                    </td>
+                    <td>
+                        @if (enc.Estado == "Pendente")
+                        {
+                            <button class="btn btn-sm btn-outline-success" @onclick='() => MudarEstado(enc, "Pago")'>Confirmar Pagamento</button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick='() => MudarEstado(enc, "Cancelado")'>Rejeitar</button>
+                        }
+                        else if (enc.Estado == "Pago")
+                        {
+                            <button class="btn btn-sm btn-primary" @onclick='() => ExpedirEncomenda(enc)'>Expedir (Simular)</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Encomenda>? Encomendas;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarEncomendas();
+    }
+
+    private async Task CarregarEncomendas()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Incluir o Cliente para mostrar o email
+        Encomendas = await context.Encomendas
+            .Include(e => e.Cliente)
+            .OrderByDescending(e => e.Data)
+            .ToListAsync();
+    }
+
+    private async Task MudarEstado(Encomenda enc, string novoEstado)
+    {
+        using var context = DbFactory.CreateDbContext();
+        var encomendaDb = await context.Encomendas.FindAsync(enc.Id);
+        if (encomendaDb != null)
+        {
+            encomendaDb.Estado = novoEstado;
+            await context.SaveChangesAsync();
+            await CarregarEncomendas();
+        }
+    }
+
+    private async Task ExpedirEncomenda(Encomenda enc)
+    {
+        using var context = DbFactory.CreateDbContext();
+
+        // 1. Atualizar Estado
+        var encomendaDb = await context.Encomendas.Include(e => e.Itens).FirstOrDefaultAsync(e => e.Id == enc.Id);
+
+        if (encomendaDb != null)
+        {
+            encomendaDb.Estado = "Enviado";
+
+            // 2. Atualizar Stocks (Requisito 8.B)
+            foreach (var item in encomendaDb.Itens)
+            {
+                var produto = await context.Produtos.FindAsync(item.ProdutoId);
+                if (produto != null)
+                {
+                    produto.Stock -= item.Quantidade; // Abater stock
+                }
+            }
+
+            await context.SaveChangesAsync();
+            await CarregarEncomendas();
+        }
+    }
+}

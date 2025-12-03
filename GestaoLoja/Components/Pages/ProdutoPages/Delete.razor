@@ -1,0 +1,104 @@
+﻿@page "/produtos/delete"
+@using Microsoft.EntityFrameworkCore
+@using GestaoLoja.Entities
+@using GestaoLoja.Data
+@using Microsoft.AspNetCore.Authorization
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+@attribute [Authorize(Roles = "Administrador,Funcionário")]
+
+<PageTitle>Apagar Produto</PageTitle>
+
+<h1>Apagar Produto</h1>
+
+@if (Produto is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="alert alert-danger">
+        <h3>Tem a certeza?</h3>
+        <p>Esta ação apagará permanentemente o produto <strong>@Produto.Nome</strong>.</p>
+    </div>
+
+    @if (TemVendasAssociadas)
+    {
+        <div class="card border-danger mb-3">
+            <div class="card-body text-danger">
+                <h5 class="card-title"><i class="bi bi-exclamation-octagon-fill"></i> Impossível Apagar</h5>
+                <p class="card-text">
+                    Este produto já foi vendido em <strong>@NumeroVendas</strong> encomendas passadas.
+                    Por motivos de histórico fiscal/auditável, não pode ser apagado fisicamente.
+                </p>
+                <p><strong>Sugestão:</strong> Em vez de apagar, edite o produto e mude o estado para <em>"Inativo"</em>.</p>
+            </div>
+        </div>
+
+        <a href="/produtos" class="btn btn-secondary">Voltar à Lista</a>
+    }
+    else
+    {
+        <dl class="row">
+            <dt class="col-sm-2">Nome</dt>
+            <dd class="col-sm-10">@Produto.Nome</dd>
+            <dt class="col-sm-2">Preço Base</dt>
+            <dd class="col-sm-10">@Produto.PrecoBase.ToString("C2")</dd>
+            <dt class="col-sm-2">Categoria</dt>
+            <dd class="col-sm-10">@(Produto.Categoria?.Nome ?? "-")</dd>
+        </dl>
+
+        <EditForm method="post" Model="Produto" OnValidSubmit="DeleteProduto" FormName="delete" Enhance>
+            <button type="submit" class="btn btn-danger" disabled="@(Produto is null)">Confirmar Apagar</button>
+            <a href="/produtos" class="btn btn-secondary">Cancelar</a>
+        </EditForm>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery]
+    public int Id { get; set; }
+
+    [SupplyParameterFromForm]
+    public Produto? Produto { get; set; }
+
+    // Variáveis de controlo
+    public bool TemVendasAssociadas { get; set; } = false;
+    public int NumeroVendas { get; set; } = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+
+        // 1. Carregar o produto
+        Produto = await context.Produtos.Include(p => p.Categoria).FirstOrDefaultAsync(m => m.Id == Id);
+
+        if (Produto is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+            return;
+        }
+
+        // 2. Verificar se existem vendas (ItensEncomenda) com este produto
+        // (Nota: Ajusta 'ItemEncomenda' se o nome da tua tabela for diferente, ex: ItensEncomenda)
+        NumeroVendas = await context.ItensEncomenda.CountAsync(i => i.ProdutoId == Id);
+
+        if (NumeroVendas > 0)
+        {
+            TemVendasAssociadas = true;
+        }
+    }
+
+    public async Task DeleteProduto()
+    {
+        // Dupla verificação de segurança
+        if (TemVendasAssociadas) return;
+
+        using var context = DbFactory.CreateDbContext();
+        context.Produtos.Attach(Produto!);
+        context.Produtos.Remove(Produto!);
+        await context.SaveChangesAsync();
+        NavigationManager.NavigateTo("/produtos");
+    }
+}

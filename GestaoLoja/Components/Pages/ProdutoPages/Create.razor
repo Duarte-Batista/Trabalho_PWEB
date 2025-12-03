@@ -1,0 +1,143 @@
+﻿@page "/produtos/create"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using GestaoLoja.Entities
+@using GestaoLoja.Data
+@inject IDbContextFactory<GestaoLoja.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+
+@attribute [Authorize]
+
+<PageTitle>Criar Produto</PageTitle>
+
+<h1>Criar Novo Produto</h1>
+
+<h2>Produto</h2>
+<hr />
+<div class="row">
+    <div class="col-md-6">
+        <EditForm method="post" Model="Produto" OnValidSubmit="AddProduto" FormName="create" Enhance>
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" />
+
+            @if (!string.IsNullOrEmpty(MensagemErro))
+            {
+                <div class="alert alert-danger">@MensagemErro</div>
+            }
+
+            <div class="mb-3">
+                <label for="nome" class="form-label">Nome:</label>
+                <InputText id="nome" @bind-Value="Produto.Nome" class="form-control" />
+                <ValidationMessage For="() => Produto.Nome" class="text-danger" />
+            </div>
+
+            <div class="mb-3">
+                <label for="descricao" class="form-label">Descrição:</label>
+                <InputTextArea id="descricao" @bind-Value="Produto.Descricao" class="form-control" />
+                <ValidationMessage For="() => Produto.Descricao" class="text-danger" />
+            </div>
+
+            <div class="mb-3">
+                <label for="precobase" class="form-label">Preço Base:</label>
+                <InputNumber id="precobase" @bind-Value="Produto.PrecoBase" class="form-control" />
+                <ValidationMessage For="() => Produto.PrecoBase" class="text-danger" />
+            </div>
+
+            <div class="mb-3">
+                <label for="categoria" class="form-label">Categoria:</label>
+                <InputSelect id="categoria" @bind-Value="Produto.CategoriaId" class="form-control">
+                    <option value="0">-- Selecione uma Categoria --</option>
+                    @if (ListaCategorias != null)
+                    {
+                        @foreach (var cat in ListaCategorias)
+                        {
+                            <option value="@cat.Id">@cat.Nome</option>
+                        }
+                    }
+                </InputSelect>
+                <ValidationMessage For="() => Produto.CategoriaId" class="text-danger" />
+            </div>
+
+            <div class="mb-3">
+                <label for="estado" class="form-label">Estado:</label>
+                <InputSelect id="estado" @bind-Value="Produto.Estado" class="form-control">
+                    @foreach (var estado in Enum.GetValues(typeof(EstadoProduto)))
+                    {
+                        <option value="@estado">@estado</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="() => Produto.Estado" class="text-danger" />
+            </div>
+
+            <div class="mb-3">
+                <label for="imageurl" class="form-label">URL da Imagem:</label>
+                <InputText id="imageurl" @bind-Value="Produto.ImageUrl" class="form-control" />
+                <ValidationMessage For="() => Produto.ImageUrl" class="text-danger" />
+            </div>
+
+            <button type="submit" class="btn btn-primary">Criar Produto</button>
+            <a href="/produtos" class="btn btn-secondary">Cancelar</a>
+        </EditForm>
+    </div>
+</div>
+
+
+@code {
+    [SupplyParameterFromForm]
+    private Produto Produto { get; set; } = new();
+
+    public List<Categoria> ListaCategorias { get; set; } = new();    //lista para guardar as categorias disponiveis
+    public string MensagemErro { get; set; } = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            using var context = DbFactory.CreateDbContext();
+            ListaCategorias = await context.Categorias.ToListAsync() ?? new List<Categoria>();   //carregar categorias para preencher o dropdown
+        } catch (Exception ex)
+        {
+            MensagemErro = "Erro ao carregar categorias: " + ex.Message;
+        }
+
+    }
+
+    // To protect from overposting attacks, see https://learn.microsoft.com/aspnet/core/blazor/forms/#mitigate-overposting-attacks.
+    private async Task AddProduto()
+    {
+        if (Produto.CategoriaId <= 0)
+        {
+            MensagemErro = "Por favor, selecione uma categoria válida.";
+            return;
+        }
+
+        //Obter o Utilizador Logado
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userPrincipal = authState.User;
+        var user = await UserManager.GetUserAsync(userPrincipal);
+
+        if (user == null)
+        {
+            MensagemErro = "Erro: Não foi possível identificar o utilizador. Faça login novamente.";
+            return;
+        }
+
+        using var context = DbFactory.CreateDbContext();
+
+        // associar o produto ao utilizador atual
+        Produto.FornecedorId = user.Id;
+
+        context.Produtos.Add(Produto);
+        try
+        {
+            await context.SaveChangesAsync();
+            NavigationManager.NavigateTo("/produtos");
+        } catch (Exception ex)
+        {
+            MensagemErro = "Ocorreu um erro ao gravar: " + ex.Message;
+        }
+    }
+}
