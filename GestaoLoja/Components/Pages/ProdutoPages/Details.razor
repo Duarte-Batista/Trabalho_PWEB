@@ -14,7 +14,7 @@
 
 @if (Produto is null)
 {
-    <p><em>A carregar dados...</em></p>
+    <p><em>Loading...</em></p>
 }
 else
 {
@@ -24,7 +24,7 @@ else
         </div>
         <div class="card-body">
             <div class="row">
-                <div class="col-md-8">
+                <div class="col-md-9">
                     <dl class="row">
                         <dt class="col-sm-4">Descrição</dt>
                         <dd class="col-sm-8">@Produto.Descricao</dd>
@@ -32,6 +32,10 @@ else
                         <dt class="col-sm-4">Categoria</dt>
                         <dd class="col-sm-8">
                             <span class="badge bg-secondary">@(Produto.Categoria?.Nome ?? "Sem Categoria")</span>
+                        </dd>
+                        <dt class="col-sm-3">Fornecedor</dt>
+                        <dd class="col-sm-9">
+                            <span class="text-primary">@(Produto.Fornecedor?.Email ?? "Desconhecido")</span>
                         </dd>
 
                         <dt class="col-sm-4">Preço Final</dt>
@@ -80,6 +84,7 @@ else
         // Carregar produto com a Categoria
         Produto = await context.Produtos
             .Include(p => p.Categoria)
+            .Include(p => p.Fornecedor)
             .FirstOrDefaultAsync(m => m.Id == Id);
 
         if (Produto is null)

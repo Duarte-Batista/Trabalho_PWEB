@@ -40,10 +40,21 @@
                 <ValidationMessage For="() => Produto.Descricao" class="text-danger" />
             </div>
 
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Preço Base (€):</label>
+                    <InputNumber @bind-Value="Produto.PrecoBase" class="form-control" />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Stock:</label>
+                    <InputNumber @bind-Value="Produto.Stock" class="form-control" />
+                </div>
+            </div>
+
             <div class="mb-3">
-                <label for="precobase" class="form-label">Preço Base:</label>
-                <InputNumber id="precobase" @bind-Value="Produto.PrecoBase" class="form-control" />
-                <ValidationMessage For="() => Produto.PrecoBase" class="text-danger" />
+                <label class="form-label">Margem de Lucro (0.00 a 1.00):</label>
+                <InputNumber @bind-Value="Produto.MargemLucro" class="form-control" min="0" max="1" step="0.01" />
+                <div class="form-text">Ex: 0.20 = 20%</div>
             </div>
 
             <div class="mb-3">
@@ -59,6 +70,22 @@
                     }
                 </InputSelect>
                 <ValidationMessage For="() => Produto.CategoriaId" class="text-danger" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Fornecedor (Dono):</label>
+                <InputSelect @bind-Value="Produto.FornecedorId" class="form-control">
+                    <option value="">-- Selecione o Fornecedor --</option>
+                    @foreach (var user in ListaUtilizadores)
+                    {
+                        <option value="@user.Id">@user.Email</option>
+                    }
+                </InputSelect>
+            </div>
+
+            <div class="mb-3 form-check">
+                <InputCheckbox @bind-Value="Produto.DisponivelParaVenda" class="form-check-input" id="checkVenda" />
+                <label class="form-check-label" for="checkVenda">Disponível para Venda</label>
             </div>
 
             <div class="mb-3">
@@ -90,54 +117,46 @@
     private Produto Produto { get; set; } = new();
 
     public List<Categoria> ListaCategorias { get; set; } = new();    //lista para guardar as categorias disponiveis
+    public List<ApplicationUser> ListaUtilizadores { get; set; } = new();
     public string MensagemErro { get; set; } = "";
 
     protected override async Task OnInitializedAsync()
     {
-        try
-        {
-            using var context = DbFactory.CreateDbContext();
-            ListaCategorias = await context.Categorias.ToListAsync() ?? new List<Categoria>();   //carregar categorias para preencher o dropdown
-        } catch (Exception ex)
-        {
-            MensagemErro = "Erro ao carregar categorias: " + ex.Message;
-        }
+        using var context = DbFactory.CreateDbContext();
+        ListaCategorias = await context.Categorias.ToListAsync();
 
+        // Carregar Utilizadores para a Dropdown
+        ListaUtilizadores = await context.Users.ToListAsync();
+
+        // Se for Fornecedor a criar, pré-seleciona-o
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var currentUser = ListaUtilizadores.FirstOrDefault(u => u.UserName == user.Identity.Name);
+            if (currentUser != null)
+            {
+                Produto.FornecedorId = currentUser.Id;
+            }
+        }
     }
 
-    // To protect from overposting attacks, see https://learn.microsoft.com/aspnet/core/blazor/forms/#mitigate-overposting-attacks.
     private async Task AddProduto()
     {
         if (Produto.CategoriaId <= 0)
         {
-            MensagemErro = "Por favor, selecione uma categoria válida.";
+            MensagemErro = "Selecione uma categoria.";
             return;
         }
-
-        //Obter o Utilizador Logado
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var userPrincipal = authState.User;
-        var user = await UserManager.GetUserAsync(userPrincipal);
-
-        if (user == null)
+        if (string.IsNullOrEmpty(Produto.FornecedorId))
         {
-            MensagemErro = "Erro: Não foi possível identificar o utilizador. Faça login novamente.";
+            MensagemErro = "Selecione um fornecedor.";
             return;
         }
 
         using var context = DbFactory.CreateDbContext();
-
-        // associar o produto ao utilizador atual
-        Produto.FornecedorId = user.Id;
-
         context.Produtos.Add(Produto);
-        try
-        {
-            await context.SaveChangesAsync();
-            NavigationManager.NavigateTo("/produtos");
-        } catch (Exception ex)
-        {
-            MensagemErro = "Ocorreu um erro ao gravar: " + ex.Message;
-        }
+        await context.SaveChangesAsync();
+        NavigationManager.NavigateTo("/produtos");
     }
 }

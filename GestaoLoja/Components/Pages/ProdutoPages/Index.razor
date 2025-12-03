@@ -13,7 +13,7 @@
 <h1>Gestão de Produtos</h1>
 
 <div class="row mb-3 align-items-end">
-    <div class="col-md-4">
+    <div class="col-md-3">
         <input type="text" class="form-control"
                @bind="TermoPesquisa"
                @bind:event="oninput"
@@ -31,13 +31,22 @@
         </select>
     </div>
 
-    <div class="col-md-2">
+    <div class="col-md-3">
+        <label class="form-label">Tipo de Listagem:</label>
+        <select class="form-select" @bind="FiltroTipo">
+            <option value="0">Todos</option>
+            <option value="1">Apenas Para Venda</option>
+            <option value="2">Apenas Coleção</option>
+        </select>
+    </div>
+
+    <div class="col-md-1">
         <button class="btn btn-primary w-100" @onclick="CarregarProdutos">
             <i class="bi bi-filter"></i> Filtrar
         </button>
     </div>
 
-    <div class="col-md-3 text-end">
+    <div class="col-md-2 text-end">
         <a href="produtos/create" class="btn btn-success">
             <i class="bi bi-plus-lg"></i> Novo
         </a>
@@ -126,6 +135,9 @@ else
     private string TermoPesquisa { get; set; } = "";
     private int CategoriaIdFiltro { get; set; } = 0;
 
+    // 0 = Todos, 1 = Venda, 2 = Coleção
+    private int FiltroTipo { get; set; } = 0;
+
     // Paginação
     private int PaginaAtual { get; set; } = 1;
     private int TamanhoPagina { get; set; } = 5; // Mostra 5 produtos por página
@@ -146,23 +158,40 @@ else
         using var context = DbFactory.CreateDbContext();
 
         // 1. Query Base
-        var query = context.Produtos.Include(p => p.Categoria).AsQueryable();
+        var query = context.Produtos
+            .Include(p => p.Categoria)
+            .AsQueryable();
 
-        // 2. Aplicar Filtros
+        // 2. Filtro: Texto
         if (!string.IsNullOrWhiteSpace(TermoPesquisa))
         {
             query = query.Where(p => p.Nome.Contains(TermoPesquisa));
         }
 
+        // Filtro: Categoria
         if (CategoriaIdFiltro > 0)
         {
             query = query.Where(p => p.CategoriaId == CategoriaIdFiltro);
         }
 
-        // 3. Contar total para paginação
+        // Filtro: Tipo (Venda vs Coleção) -> A TUA NOVIDADE AQUI
+        if (FiltroTipo == 1)
+        {
+            // Quer apenas Venda
+            query = query.Where(p => p.DisponivelParaVenda == true);
+        }
+        else if (FiltroTipo == 2)
+        {
+            // Quer apenas Coleção
+            query = query.Where(p => p.DisponivelParaVenda == false);
+        }
+
+        // Contar e Paginar
         TotalItems = await query.CountAsync();
 
-        // 4. Aplicar Paginação (Skip/Take)
+        if (TotalPaginas == 0) PaginaAtual = 1;
+        else if (PaginaAtual > TotalPaginas) PaginaAtual = TotalPaginas;
+
         Produtos = await query
             .OrderByDescending(p => p.Id)
             .Skip((PaginaAtual - 1) * TamanhoPagina)
@@ -170,21 +199,6 @@ else
             .ToListAsync();
     }
 
-    private async Task PaginaAnterior()
-    {
-        if (PaginaAtual > 1)
-        {
-            PaginaAtual--;
-            await CarregarProdutos();
-        }
-    }
-
-    private async Task PaginaSeguinte()
-    {
-        if (PaginaAtual < TotalPaginas)
-        {
-            PaginaAtual++;
-            await CarregarProdutos();
-        }
-    }
+    private async Task PaginaAnterior() { if (PaginaAtual > 1) { PaginaAtual--; await CarregarProdutos(); } }
+    private async Task PaginaSeguinte() { if (PaginaAtual < TotalPaginas) { PaginaAtual++; await CarregarProdutos(); } }
 }
