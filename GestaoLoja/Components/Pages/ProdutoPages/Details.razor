@@ -1,58 +1,88 @@
 ﻿@page "/produtos/details"
 @using Microsoft.EntityFrameworkCore
 @using GestaoLoja.Entities
+@using GestaoLoja.Data
+@using Microsoft.AspNetCore.Authorization
 @inject IDbContextFactory<GestaoLoja.Data.ApplicationDbContext> DbFactory
 @inject NavigationManager NavigationManager
 
-<PageTitle>Details</PageTitle>
+@attribute [Authorize]
 
-<h1>Details</h1>
+<PageTitle>Detalhes do Produto</PageTitle>
 
-<div>
-    <h2>Produto</h2>
-    <hr />
-    @if (produto is null)
-    {
-        <p><em>Loading...</em></p>
-    }
-    else {
-        <dl class="row">
-            <dt class="col-sm-2">Nome</dt>
-            <dd class="col-sm-10">@produto.Nome</dd>
-            <dt class="col-sm-2">Descricao</dt>
-            <dd class="col-sm-10">@produto.Descricao</dd>
-            <dt class="col-sm-2">PrecoBase</dt>
-            <dd class="col-sm-10">@produto.PrecoBase</dd>
-            <dt class="col-sm-2">MargemLucro</dt>
-            <dd class="col-sm-10">@produto.MargemLucro</dd>
-            <dt class="col-sm-2">ImageUrl</dt>
-            <dd class="col-sm-10">@produto.ImageUrl</dd>
-            <dt class="col-sm-2">Estado</dt>
-            <dd class="col-sm-10">@produto.Estado</dd>
-            <dt class="col-sm-2">CategoriaId</dt>
-            <dd class="col-sm-10">@produto.CategoriaId</dd>
-            <dt class="col-sm-2">FornecedorId</dt>
-            <dd class="col-sm-10">@produto.FornecedorId</dd>
-        </dl>
-        <div>
-            <a href="@($"/produtos/edit?id={produto.Id}")">Edit</a> |
-            <a href="@($"/produtos")">Back to List</a>
+<h1>Detalhes do Produto</h1>
+
+@if (Produto is null)
+{
+    <p><em>A carregar dados...</em></p>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">@Produto.Nome</h4>
         </div>
-    }
-</div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-8">
+                    <dl class="row">
+                        <dt class="col-sm-4">Descrição</dt>
+                        <dd class="col-sm-8">@Produto.Descricao</dd>
+
+                        <dt class="col-sm-4">Categoria</dt>
+                        <dd class="col-sm-8">
+                            <span class="badge bg-secondary">@(Produto.Categoria?.Nome ?? "Sem Categoria")</span>
+                        </dd>
+
+                        <dt class="col-sm-4">Preço Final</dt>
+                        <dd class="col-sm-8 fw-bold text-success">@Produto.PrecoFinal.ToString("C2")</dd>
+
+                        <dt class="col-sm-4">Stock Disponível</dt>
+                        <dd class="col-sm-8">@Produto.Stock unidades</dd>
+
+                        <dt class="col-sm-4">Estado</dt>
+                        <dd class="col-sm-8">@Produto.Estado</dd>
+                    </dl>
+                </div>
+
+                <div class="col-md-4 text-center">
+                    @if (!string.IsNullOrEmpty(Produto.UrlImagem))
+                    {
+                        <img src="@Produto.UrlImagem" class="img-fluid rounded border" style="max-height: 300px;" />
+                    }
+                    else
+                    {
+                        <div class="alert alert-light border">Sem Imagem</div>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="card-footer">
+            <AuthorizeView Roles="Administrador,Funcionário">
+                <a href="@($"produtos/edit?id={Produto.Id}")" class="btn btn-primary">Editar</a>
+            </AuthorizeView>
+
+            <a href="/produtos" class="btn btn-secondary">Voltar à Lista</a>
+        </div>
+    </div>
+}
 
 @code {
-    private Produto? produto;
-
     [SupplyParameterFromQuery]
-    private int Id { get; set; }
+    public int Id { get; set; }
+
+    public Produto? Produto { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
         using var context = DbFactory.CreateDbContext();
-        produto = await context.Produtos.FirstOrDefaultAsync(m => m.Id == Id);
 
-        if (produto is null)
+        // Carregar produto com a Categoria
+        Produto = await context.Produtos
+            .Include(p => p.Categoria)
+            .FirstOrDefaultAsync(m => m.Id == Id);
+
+        if (Produto is null)
         {
             NavigationManager.NavigateTo("notfound");
         }

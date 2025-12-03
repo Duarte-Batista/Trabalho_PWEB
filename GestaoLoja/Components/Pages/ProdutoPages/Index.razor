@@ -96,11 +96,15 @@ else
                             <span class="badge bg-secondary">@produto.Estado</span>
                         </td>
                         <td>
+                            <a href="produtos/details?id=@produto.Id" class="btn btn-sm btn-info" title="Ver Detalhes">
+                                <i class="bi bi-eye"></i> Detalhes
+                            </a>
                             <AuthorizeView Roles="Administrador,Funcionário">
                                 <a href="produtos/edit?id=@produto.Id" class="btn btn-sm btn-outline-primary">Editar</a>
                                 <a href="produtos/delete?id=@produto.Id" class="btn btn-sm btn-outline-danger">Apagar</a>
                             </AuthorizeView>
                         </td>
+
                     </tr>
                 }
             </tbody>
