@@ -1,0 +1,156 @@
+﻿@page "/produtos/aprovacao"
+@using Microsoft.EntityFrameworkCore
+@using GestaoLoja.Entities
+@using GestaoLoja.Data
+@using Microsoft.AspNetCore.Authorization
+@inject IDbContextFactory<GestaoLoja.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+@attribute [Authorize(Roles = "Administrador, Funcionario")]
+
+<PageTitle>Aprovação de Produtos</PageTitle>
+
+<h1><i class="bi bi-check-circle"></i> Aprovação de Produtos</h1>
+<p class="text-muted">Lista de produtos submetidos por fornecedores que aguardam validação</p>
+
+@if (ProdutosPendentes == null)
+{
+    <p><em>A carregar...</em></p>
+}
+else if (!ProdutosPendentes.Any())
+{
+    <div class="alert alert-success">
+        <i class="bi bi-emoji-smile"></i> Não existem produtos pendentes para aprovação
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle shadow-sm">
+            <thead class="table-light">
+                <tr>
+                    <th>Img</th>
+                    <th>Produto / Fornecedor</th>
+                    <th>Preço Base</th>
+                    <th>Margem Atual</th>
+                    <th>Preço Final</th>
+                    <th class="text-center">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var produto in ProdutosPendentes)
+                {
+                    <tr class="table-warning">
+                        <td style="width: 60px;">
+                            @if (!string.IsNullOrEmpty(produto.UrlImagem))
+                            {
+                                <img src="@produto.UrlImagem" style="width: 50px; height: 50px; object-fit: cover;" class="rounded" />
+                            }
+                            else
+                            {
+                                <span class="text-muted small">N/A</span>
+                            }
+                        </td>
+                        <td>
+                            <div class="fw-bold">@produto.Nome</div>
+                            <div class="text-muted small">
+                                <i class="bi bi-person"></i> @(produto.Fornecedor?.Email ?? "Desconhecido")
+                            </div>
+                            <div class="text-muted small">
+                                <i class="bi bi-tag"></i> @(produto.Categoria?.Nome ?? "-")
+                            </div>
+                        </td>
+                        <td>@produto.PrecoBase.ToString("C2")</td>
+
+                        <td>
+                            @if (produto.MargemLucro <= 0)
+                            {
+                                <span class="text-danger fw-bold">0% (Atenção!)</span>
+                            }
+                            else
+                            {
+                                <span class="text-success">@((produto.MargemLucro * 100).ToString("F0"))%</span>
+                            }
+                        </td>
+
+                        <td class="fw-bold text-primary">@produto.PrecoFinal.ToString("C2")</td>
+
+                        <td class="text-center">
+                            <div class="d-flex gap-2 justify-content-center">
+                                <a href="produtos/edit?id=@produto.Id" class="btn btn-sm btn-outline-primary" title="Definir Preço/Margem">
+                                    <i class="bi bi-pencil"></i> Rever
+                                </a>
+
+                                <button class="btn btn-sm btn-success" @onclick="() => AprovarProduto(produto)">
+                                    <i class="bi bi-check-lg"></i> Aprovar
+                                </button>
+
+                                <button class="btn btn-sm btn-danger" @onclick="() => RejeitarProduto(produto)">
+                                    <i class="bi bi-x-lg"></i> Rejeitar
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<Produto>? ProdutosPendentes;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarPendentes();
+    }
+
+    private async Task CarregarPendentes()
+    {
+        using var context = DbFactory.CreateDbContext();
+
+        // Carrega APENAS os Pendentes
+        ProdutosPendentes = await context.Produtos
+            .Include(p => p.Fornecedor)
+            .Include(p => p.Categoria)
+            .Where(p => p.Estado == EstadoProduto.Pendente)
+            .OrderBy(p => p.Id)
+            .ToListAsync();
+    }
+
+    private async Task AprovarProduto(Produto p)
+    {
+        using var context = DbFactory.CreateDbContext();
+        var produtoDb = await context.Produtos.FindAsync(p.Id);
+
+        if (produtoDb != null)
+        {
+            // Ativa o produto
+            produtoDb.Estado = EstadoProduto.Ativo;
+
+            // Opcional: Se a margem for 0, define uma margem padrão de 20% ao aprovar?
+            if (produtoDb.MargemLucro == 0) produtoDb.MargemLucro = 0.20;
+
+            await context.SaveChangesAsync();
+
+            // Recarrega a lista para o produto desaparecer desta página
+            await CarregarPendentes();
+        }
+    }
+
+    private async Task RejeitarProduto(Produto p)
+    {
+        // Aqui podes decidir: Apagar ou mudar para Inativo?
+        // Mudar para Inativo permite ao fornecedor corrigir e voltar a submeter.
+
+        using var context = DbFactory.CreateDbContext();
+        var produtoDb = await context.Produtos.FindAsync(p.Id);
+
+        if (produtoDb != null)
+        {
+            produtoDb.Estado = EstadoProduto.Inativo;
+            await context.SaveChangesAsync();
+            await CarregarPendentes();
+        }
+    }
+}

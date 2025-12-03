@@ -148,7 +148,7 @@ else
 
     public async Task UpdateProduto()
     {
-        // 1. Processar Upload se existir
+        // Processar Upload se existir
         if (ficheiroUpload != null)
         {
             try
@@ -167,12 +167,12 @@ else
 
         using var context = DbFactory.CreateDbContext();
 
-        // 2. BUSCAR O PRODUTO REAL À BD
+        // BUSCAR O PRODUTO REAL À BD
         var produtoNaBd = await context.Produtos.FindAsync(Produto!.Id);
 
         if (produtoNaBd != null)
         {
-            // 3. ATUALIZAR MANUALMENTE (Isto garante que o FornecedorId atualiza)
+            // ATUALIZAR MANUALMENTE (Isto garante que o FornecedorId atualiza)
             produtoNaBd.Nome = Produto.Nome;
             produtoNaBd.Descricao = Produto.Descricao;
             produtoNaBd.PrecoBase = Produto.PrecoBase;
@@ -180,7 +180,7 @@ else
             produtoNaBd.Stock = Produto.Stock;
             produtoNaBd.Estado = Produto.Estado;
             produtoNaBd.CategoriaId = Produto.CategoriaId;
-            produtoNaBd.FornecedorId = Produto.FornecedorId; // <--- OBRIGATÓRIO
+            produtoNaBd.FornecedorId = Produto.FornecedorId;
             produtoNaBd.DisponivelParaVenda = Produto.DisponivelParaVenda;
             produtoNaBd.UrlImagem = Produto.UrlImagem;
 
