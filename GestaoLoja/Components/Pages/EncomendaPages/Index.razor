@@ -1,0 +1,129 @@
+﻿@page "/encomendas"
+@using Microsoft.EntityFrameworkCore
+@using GestaoLoja.Entities
+@using GestaoLoja.Data
+@using Microsoft.AspNetCore.Authorization
+@inject IDbContextFactory<GestaoLoja.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+@attribute [Authorize(Roles = "Administrador,Funcionário")]
+
+<PageTitle>Index</PageTitle>
+
+<h1>Encomendas</h1>
+
+<div class="mb-3">
+    <select class="form-select w-auto d-inline-block" @bind="FiltroEstado">
+        <option value="">Todos os Estados</option>
+        <option value="Pendente">Pendente</option>
+        <option value="Pago">Pago</option>
+        <option value="Enviado">Enviado</option>
+    </select>
+    <button class="btn btn-secondary" @onclick="CarregarDados">Filtrar</button>
+</div>
+
+@if (Encomendas == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>ValorTotal</th>
+                <th>Estado</th>
+                <th>Cliente</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var encomenda in Encomendas)
+            {
+                <tr>
+                    <td>@encomenda.Data</td>
+                    <td>@encomenda.ValorTotal</td>
+                    <td>@encomenda.Estado</td>
+                    <td>@(encomenda.Cliente?.Email ?? "Anónimo")</td>
+                    <td>
+                        @if (encomenda.Estado == "Pendente")
+                        {
+                            <button class="btn btn-success btn-sm" @onclick='() => MudarEstado(encomenda, "Pago")'>Confirmar</button>
+                            <button class="btn btn-danger btn-sm" @onclick='() => MudarEstado(encomenda, "Cancelado")'>Rejeitar</button>
+                        }
+                        else if (encomenda.Estado == "Pago")
+                        {
+                            <button class="btn btn-primary btn-sm" @onclick='() => Expedir(encomenda)'>Expedir</button>
+                        }
+
+                        <a href="@($"encomendas/details?id={encomenda.Id}")">Details</a> |
+                        <AuthorizeView Roles="Administrador">
+                            <a href="@($"encomendas/delete?id={encomenda.Id}")">Delete</a>
+                        </AuthorizeView>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Encomenda>? Encomendas;
+    private string FiltroEstado = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        using var context = DbFactory.CreateDbContext();
+        var query = context.Encomendas
+            .Include(e => e.Cliente) // O Scaffolding esquece-se disto
+            .AsQueryable();
+
+        if (!string.IsNullOrEmpty(FiltroEstado))
+        {
+            query = query.Where(e => e.Estado == FiltroEstado);
+        }
+
+        Encomendas = await query.OrderByDescending(e => e.Data).ToListAsync();
+    }
+
+    // Lógica de Stock (O Scaffolding não faz isto!)
+    private async Task Expedir(Encomenda enc)
+    {
+        using var context = DbFactory.CreateDbContext();
+        var encDb = await context.Encomendas
+            .Include(e => e.Itens)
+            .FirstOrDefaultAsync(e => e.Id == enc.Id);
+
+        if (encDb != null && encDb.Estado == "Pago")
+        {
+            // Atualizar Stocks
+            foreach (var item in encDb.Itens)
+            {
+                var produto = await context.Produtos.FindAsync(item.ProdutoId);
+                if (produto != null) produto.Stock -= item.Quantidade;
+            }
+
+            encDb.Estado = "Enviado";
+            await context.SaveChangesAsync();
+            await CarregarDados();
+        }
+    }
+
+    private async Task MudarEstado(Encomenda enc, string estado)
+    {
+        using var context = DbFactory.CreateDbContext();
+        var encDb = await context.Encomendas.FindAsync(enc.Id);
+        if (encDb != null)
+        {
+            encDb.Estado = estado;
+            await context.SaveChangesAsync();
+            await CarregarDados();
+        }
+    }
+}

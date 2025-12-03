@@ -1,0 +1,104 @@
+﻿@page "/encomenda/edit"
+@using Microsoft.EntityFrameworkCore
+@using GestaoLoja.Entities
+@inject IDbContextFactory<GestaoLoja.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit</PageTitle>
+
+<h1>Edit</h1>
+
+<h2>Encomenda</h2>
+<hr />
+@if (Encomenda is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-4">
+            <EditForm method="post" Model="Encomenda" OnValidSubmit="UpdateEncomenda" FormName="edit" Enhance>
+                <DataAnnotationsValidator />
+                <ValidationSummary role="alert"/>
+                <input type="hidden" name="Encomenda.Id" value="@Encomenda.Id" />
+                <div class="mb-3">
+                    <label for="data" class="form-label">Data:</label>
+                    <InputDate id="data" @bind-Value="Encomenda.Data" class="form-control" />
+                    <ValidationMessage For="() => Encomenda.Data" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <label for="valortotal" class="form-label">ValorTotal:</label>
+                    <InputNumber id="valortotal" @bind-Value="Encomenda.ValorTotal" class="form-control" />
+                    <ValidationMessage For="() => Encomenda.ValorTotal" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <label for="estado" class="form-label">Estado:</label>
+                    <InputText id="estado" @bind-Value="Encomenda.Estado" class="form-control" />
+                    <ValidationMessage For="() => Encomenda.Estado" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <label for="clienteid" class="form-label">ClienteId:</label>
+                    <InputText id="clienteid" @bind-Value="Encomenda.ClienteId" class="form-control" />
+                    <ValidationMessage For="() => Encomenda.ClienteId" class="text-danger" />
+                </div>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<div>
+    <a href="/encomenda">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private int Id { get; set; }
+
+    [SupplyParameterFromForm]
+    private Encomenda? Encomenda { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        Encomenda ??= await context.Encomendas.FirstOrDefaultAsync(m => m.Id == Id);
+
+        if (Encomenda is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+
+    // To protect from overposting attacks, enable the specific properties you want to bind to.
+    // For more information, see https://learn.microsoft.com/aspnet/core/blazor/forms/#mitigate-overposting-attacks.
+    private async Task UpdateEncomenda()
+    {
+        using var context = DbFactory.CreateDbContext();
+        context.Attach(Encomenda!).State = EntityState.Modified;
+
+        try
+        {
+            await context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!EncomendaExists(Encomenda!.Id))
+            {
+                NavigationManager.NavigateTo("notfound");
+            }
+            else
+            {
+                throw;
+            }
+        }
+
+        NavigationManager.NavigateTo("/encomenda");
+    }
+
+    private bool EncomendaExists(int id)
+    {
+        using var context = DbFactory.CreateDbContext();
+        return context.Encomendas.Any(e => e.Id == id);
+    }
+}
