@@ -3,11 +3,12 @@
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using GestaoLoja.Data
+@using Microsoft.AspNetCore.Components.Authorization
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject UserManager<ApplicationUser> UserManager
 @inject AuthenticationStateProvider AuthStateProvider
 
-@attribute [Authorize(Roles = "Administrador")]
+@attribute [Authorize(Roles = "Administrador, Funcionario")]
 
 <PageTitle>Gestão de Utilizadores</PageTitle>
 
@@ -23,6 +24,7 @@ else
         <thead>
             <tr>
                 <th>Email</th>
+                <th>NIF</th>
                 <th>Cargo Atual</th>
                 <th>Mudar Cargo</th>
                 <th>Estado</th>
@@ -34,17 +36,43 @@ else
             {
                 <tr>
                     <td>@user.Email</td>
-                    <td><span class="badge bg-info text-dark">@user.TipoUtilizador</span></td>
+                    <td>@user.Nif</td>
                     <td>
-                        @if (user.TipoUtilizador != "Administrador")
+                        <span class="badge bg-info text-dark">@user.TipoUtilizador</span>
+                    </td>
+
+                    <td>
+                        @if (user.Email == CurrentUserEmail)
+                        {
+                            <span class="text-muted small">Eu</span>
+                        }
+                        else
                         {
                             <div class="btn-group btn-group-sm">
-                                <button class="btn btn-outline-secondary" @onclick='() => MudarCargo(user, "Funcionario")'>Func</button>
-                                <button class="btn btn-outline-secondary" @onclick='() => MudarCargo(user, "Fornecedor")'>Forn</button>
-                                <button class="btn btn-outline-secondary" @onclick='() => MudarCargo(user, "Cliente")'>Cli</button>
+                                @if (SouAdmin)
+                                {
+                                    <button class="btn @(user.TipoUtilizador == "Funcionario" ? "btn-dark" : "btn-outline-dark")"
+                                            @onclick='() => MudarCargo(user, "Funcionario")'>
+                                        Func
+                                    </button>
+                                }
+
+                                @if (SouAdmin || (SouFuncionario && (user.TipoUtilizador == "Cliente" || user.TipoUtilizador == "Fornecedor")))
+                                {
+                                    <button class="btn @(user.TipoUtilizador == "Fornecedor" ? "btn-primary" : "btn-outline-primary")"
+                                            @onclick='() => MudarCargo(user, "Fornecedor")'>
+                                        Forn
+                                    </button>
+
+                                    <button class="btn @(user.TipoUtilizador == "Cliente" ? "btn-secondary" : "btn-outline-secondary")"
+                                            @onclick='() => MudarCargo(user, "Cliente")'>
+                                        Cli
+                                    </button>
+                                }
                             </div>
                         }
                     </td>
+
                     <td>
                         @if (user.EstadoConta == "Ativo")
                         {
@@ -55,20 +83,32 @@ else
                             <span class="badge bg-warning text-dark">@user.EstadoConta</span>
                         }
                     </td>
+
                     <td>
                         @if (user.Email == CurrentUserEmail)
                         {
-                            <span class="text-muted small fst-italic">Eu (Conta Atual)</span>
+                            <span class="text-muted small fst-italic">A conta atual</span>
                         }
                         else
                         {
-                            @if (user.EstadoConta != "Ativo")
+                            @if (SouAdmin || (SouFuncionario && (user.TipoUtilizador == "Cliente" || user.TipoUtilizador == "Fornecedor")))
                             {
-                                <button class="btn btn-sm btn-success" @onclick='() => AlterarEstado(user, "Ativo")'>Aprovar</button>
+                                @if (user.EstadoConta != "Ativo")
+                                {
+                                    <button class="btn btn-sm btn-success" @onclick='() => AlterarEstado(user, "Ativo")'>
+                                        <i class="bi bi-check-lg"></i> Aprovar
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-warning" @onclick='() => AlterarEstado(user, "Pendente")'>
+                                        <i class="bi bi-pause-fill"></i> Suspender
+                                    </button>
+                                }
                             }
                             else
                             {
-                                <button class="btn btn-sm btn-warning" @onclick='() => AlterarEstado(user, "Pendente")'>Suspender</button>
+                                <span class="text-muted small"><i class="bi bi-lock"></i> Bloqueado</span>
                             }
                         }
                     </td>
@@ -80,26 +120,40 @@ else
 
 @code {
     private List<ApplicationUser>? Users;
+    
+    // Variáveis para controlar Permissões
     private string CurrentUserEmail = "";
+    private bool SouAdmin = false;
+    private bool SouFuncionario = false;
 
     protected override async Task OnInitializedAsync()
     {
+        // 1. Descobrir quem sou eu e os meus poderes
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        CurrentUserEmail = authState.User.Identity?.Name ?? "";
+        var userPrincipal = authState.User;
+
+        CurrentUserEmail = userPrincipal.Identity?.Name ?? "";
+        SouAdmin = userPrincipal.IsInRole("Administrador");
+        SouFuncionario = userPrincipal.IsInRole("Funcionario");
+
         await CarregarUsers();
     }
 
     private async Task CarregarUsers()
     {
         using var context = DbFactory.CreateDbContext();
-        Users = await context.Users.ToListAsync();
+        Users = await context.Users.OrderBy(u => u.Email).ToListAsync();
     }
 
     private async Task AlterarEstado(ApplicationUser user, string novoEstado)
     {
+        // Dupla verificação de segurança no servidor
+        if (user.Email == CurrentUserEmail) return; // Nunca apagar a si próprio
+        if (SouFuncionario && !SouAdmin && (user.TipoUtilizador == "Administrador" || user.TipoUtilizador == "Funcionario")) return; // Staff não toca em chefias
+
         using var context = DbFactory.CreateDbContext();
         var userNaBd = await context.Users.FindAsync(user.Id);
-
+        
         if (userNaBd != null)
         {
             userNaBd.EstadoConta = novoEstado;
@@ -110,21 +164,25 @@ else
 
     private async Task MudarCargo(ApplicationUser user, string novoRole)
     {
-        var userManager = UserManager; // Usa o serviço injetado
-        var userReal = await userManager.FindByIdAsync(user.Id);
+        // Verificações de segurança
+        if (user.Email == CurrentUserEmail) return;
+        if (novoRole == "Funcionario" && !SouAdmin) return; // Só Admin cria Funcionários
+        if (SouFuncionario && (user.TipoUtilizador == "Administrador" || user.TipoUtilizador == "Funcionario")) return; // Staff não mexe em Staff
 
+        // Lógica do Identity
+        var userReal = await UserManager.FindByIdAsync(user.Id);
         if (userReal != null)
         {
-            // Remover todos os cargos atuais
-            var rolesAtuais = await userManager.GetRolesAsync(userReal);
-            await userManager.RemoveFromRolesAsync(userReal, rolesAtuais);
+            // Remover cargos antigos
+            var rolesAtuais = await UserManager.GetRolesAsync(userReal);
+            await UserManager.RemoveFromRolesAsync(userReal, rolesAtuais);
 
-            // Adicionar o novo cargo
-            await userManager.AddToRoleAsync(userReal, novoRole);
+            // Adicionar novo cargo
+            await UserManager.AddToRoleAsync(userReal, novoRole);
 
-            // Atualizar o texto na BD para a tabela ficar bonita
+            // Atualizar texto na BD (para a tabela e queries simples)
             userReal.TipoUtilizador = novoRole;
-            await userManager.UpdateAsync(userReal);
+            await UserManager.UpdateAsync(userReal);
 
             await CarregarUsers();
         }
