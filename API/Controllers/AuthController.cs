@@ -7,7 +7,7 @@ using System.Text;
 using GestaoLoja.DTOs;
 using GestaoLoja.Data;
 
-namespace MyCOLL.API.Controllers
+namespace API.Controllers
 {
 	[Route("api/[controller]")]
 	[ApiController]

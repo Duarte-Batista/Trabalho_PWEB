@@ -180,27 +180,26 @@ else
     {
         using var context = DbFactory.CreateDbContext();
 
-        // 1. Carregar a encomenda e os seus ITENS (Produtos)
+        // Carregar a encomenda e os seus ITENS (Produtos)
         var encDb = await context.Encomendas
             .Include(e => e.Itens) // Fundamental para saber o que abater
             .FirstOrDefaultAsync(e => e.Id == enc.Id);
 
         if (encDb != null && encDb.Estado == "Pago")
         {
-            // 2. Loop para abater Stock
-            foreach (var item in encDb.Itens)
-            {
-                var produto = await context.Produtos.FindAsync(item.ProdutoId);
-                if (produto != null)
-                {
-                    // Abate a quantidade vendida
-                    produto.Stock = produto.Stock - item.Quantidade;
-                }
-            }
+            // Loop para abater Stock
+            // foreach (var item in encDb.Itens)
+            // {
+            //     var produto = await context.Produtos.FindAsync(item.ProdutoId);
+            //     if (produto != null)
+            //     {
+            //         // Abate a quantidade vendida
+            //         produto.Stock = produto.Stock - item.Quantidade;
+            //     }
+            // }
 
-            // 3. Mudar estado para Enviado
+            // Mudar estado para Enviado
             encDb.Estado = "Enviado";
-
             await context.SaveChangesAsync();
             await CarregarEncomendas();
         }
