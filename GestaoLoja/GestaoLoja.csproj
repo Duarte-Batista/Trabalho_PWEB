@@ -8,6 +8,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="DTOs\NewFolder\**" />
+    <Content Remove="DTOs\NewFolder\**" />
+    <EmbeddedResource Remove="DTOs\NewFolder\**" />
+    <None Remove="DTOs\NewFolder\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Remove="Components\Pages\Admin\GerirEncomendas.razor" />
   </ItemGroup>
 

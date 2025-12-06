@@ -2,7 +2,8 @@
 using Microsoft.EntityFrameworkCore;
 using GestaoLoja.Data;
 using GestaoLoja.Entities;
-using System.Security.Claims; // Necessário para ler o ID do utilizador (futuro JWT)
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization; // Necessário para ler o ID do utilizador (futuro JWT)
 
 namespace API.Controllers
 {
@@ -19,7 +20,7 @@ namespace API.Controllers
 			_environment = environment;
 		}
 
-		// 1. GET PÚBLICO (Com Filtros)
+		// GET PÚBLICO (Com Filtros)
 		// Exemplo: GET /api/produtos?termo=moeda&categoriaId=2
 		[HttpGet]
 		public async Task<ActionResult<IEnumerable<Produto>>> GetProdutos([FromQuery] string? termo, [FromQuery] int? categoriaId)
@@ -42,7 +43,7 @@ namespace API.Controllers
 			return await query.ToListAsync();
 		}
 
-		// 2. GET DETALHES
+		// GET DETALHES
 		[HttpGet("{id}")]
 		public async Task<ActionResult<Produto>> GetProduto(int id)
 		{
@@ -60,26 +61,33 @@ namespace API.Controllers
 		// ÁREA DO FORNECEDOR (Requer Autenticação no futuro)
 		// ==========================================================
 
-		// 3. GET MEUS PRODUTOS (Para o Fornecedor ver a sua lista)
+		// GET MEUS PRODUTOS (Para o Fornecedor ver a sua lista)
 		[HttpGet("meus-produtos")]
+		[Authorize(Roles = "Fornecedor, Administrador")]
 		public async Task<ActionResult<IEnumerable<Produto>>> GetMeusProdutos()
 		{
-			// Nota: Quando tivermos JWT, trocamos "user-temp" pelo User.FindFirstValue(ClaimTypes.NameIdentifier)
 			var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+			var isAdmin = User.IsInRole("Administrador");
 
-			if (string.IsNullOrEmpty(userId)) return Unauthorized("Utilizador não identificado.");
+			var query = _context.Produtos.Include(p => p.Categoria).AsQueryable();
 
-			return await _context.Produtos
-				.Include(p => p.Categoria)
-				.Where(p => p.FornecedorId == userId)
-				.ToListAsync();
+			if (!isAdmin)
+			{
+				// Se NÃO for admin, filtra pelo dono. 
+				// Se for Admin, não filtra nada (vê tudo).
+				query = query.Where(p => p.FornecedorId == userId);
+			}
+
+			return await query.ToListAsync();
 		}
 
-		// 4. CRIAR PRODUTO (POST)
+		// CRIAR PRODUTO (POST)
 		[HttpPost]
+		[Authorize(Roles = "Fornecedor, Administrador")]
 		public async Task<ActionResult<Produto>> PostProduto([FromForm] Produto produto)
 		{
 			var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+			var isAdmin = User.IsInRole("Administrador");
 			if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
 			// Regras de negócio
@@ -98,18 +106,20 @@ namespace API.Controllers
 			return CreatedAtAction("GetProduto", new { id = produto.Id }, produto);
 		}
 
-		// 5. EDITAR PRODUTO (PUT)
+		// EDITAR PRODUTO (PUT)
 		[HttpPut("{id}")]
+		[Authorize(Roles = "Fornecedor, Administrador")]
 		public async Task<IActionResult> PutProduto(int id, [FromForm] Produto produtoAtualizado)
 		{
 			if (id != produtoAtualizado.Id) return BadRequest();
 
 			var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+			var isAdmin = User.IsInRole("Administrador");
 			var produtoOriginal = await _context.Produtos.FindAsync(id);
 
-			// Segurança: Só o dono pode editar
 			if (produtoOriginal == null) return NotFound();
-			if (produtoOriginal.FornecedorId != userId) return Forbid(); // 403 Proibido
+			// Segurança: Só o dono ou o admin podem editar 
+			if (produtoOriginal.FornecedorId != userId && !isAdmin) return Forbid(); // 403 Proibido
 
 			// Atualizar campos permitidos
 			produtoOriginal.Nome = produtoAtualizado.Nome;
@@ -119,7 +129,7 @@ namespace API.Controllers
 			produtoOriginal.CategoriaId = produtoAtualizado.CategoriaId;
 			produtoOriginal.DisponivelParaVenda = produtoAtualizado.DisponivelParaVenda;
 
-			// Se editou, volta a Pendente para aprovação? (Depende da regra, geralmente sim)
+			// Se editou, volta a Pendente para aprovação?
 			produtoOriginal.Estado = EstadoProduto.Pendente;
 
 			if (produtoAtualizado.ImageFile != null)
@@ -131,15 +141,17 @@ namespace API.Controllers
 			return NoContent();
 		}
 
-		// 6. APAGAR PRODUTO (DELETE)
+		// APAGAR PRODUTO (DELETE)
 		[HttpDelete("{id}")]
+		[Authorize(Roles = "Fornecedor, Administrador")]
 		public async Task<IActionResult> DeleteProduto(int id)
 		{
 			var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+			var isAdmin = User.IsInRole("Administrador");
 			var produto = await _context.Produtos.FindAsync(id);
 
 			if (produto == null) return NotFound();
-			if (produto.FornecedorId != userId) return Forbid();
+			if (produto.FornecedorId != userId && !isAdmin) return Forbid();
 
 			// Verificar se tem vendas (Regra de Ouro)
 			bool temVendas = await _context.ItensEncomenda.AnyAsync(i => i.ProdutoId == id);

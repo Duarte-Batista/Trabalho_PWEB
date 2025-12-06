@@ -23,7 +23,7 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
 	.AddEntityFrameworkStores<ApplicationDbContext>()
 	.AddDefaultTokenProviders();
 
-// Configurar Autenticação JWT (Obrigatório)
+// Configurar Autenticação JWT 
 var jwtKey = builder.Configuration["Jwt:Key"];
 var key = Encoding.ASCII.GetBytes(jwtKey ?? "chave_secreta_fallback_muito_longa");
 
@@ -49,7 +49,7 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddControllers().AddJsonOptions(x =>
    x.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
 
-// Configurar Swagger com suporte a JWT (Cadeado no Swagger)
+// Configurar Swagger com suporte a JWT
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
