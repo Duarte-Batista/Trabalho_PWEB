@@ -5,6 +5,7 @@
 @using Microsoft.AspNetCore.Authorization
 @inject IDbContextFactory<GestaoLoja.Data.ApplicationDbContext> DbFactory
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JS
 
 @attribute [Authorize(Roles = "Administrador,Funcionário")]
 
@@ -15,11 +16,11 @@
 <div class="card mb-4 bg-light shadow-sm border-0">
     <div class="card-body p-3">
         <div class="row g-2 align-items-end">
-            <div class="col-md-6">
-                <label class="form-label small fw-bold text-secondary">Filtrar por Estado:</label>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-secondary">Estado:</label>
                 <select class="form-select" @bind="FiltroEstado">
                     <option value="">Todos</option>
-                    <option value="Pendente">Pendente (Por Aprovar)</option>
+                    <option value="Pendente">Pendente</option>
                     <option value="Pago">Pago (Pronto a Expedir)</option>
                     <option value="Enviado">Enviado</option>
                     <option value="Cancelado">Cancelado</option>
@@ -27,7 +28,7 @@
             </div>
             <div class="col-md-3">
                 <button class="btn btn-secondary w-100" @onclick="CarregarEncomendas">
-                    <i class="bi bi-filter"></i> Filtrar
+                    <i class="bi bi-filter"></i> Atualizar
                 </button>
             </div>
         </div>
@@ -36,11 +37,17 @@
 
 @if (Encomendas == null)
 {
-    <p><em>A carregar encomendas...</em></p>
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
 }
 else if (!Encomendas.Any())
 {
-    <div class="alert alert-info">Não foram encontradas encomendas.</div>
+    <div class="alert alert-info text-center">
+        <i class="bi bi-info-circle me-2"></i> Sem encomendas registadas.
+    </div>
 }
 else
 {
@@ -48,85 +55,84 @@ else
         <table class="table table-hover align-middle shadow-sm border bg-white">
             <thead class="table-light">
                 <tr>
-                    <th>ID</th>
+                    <th class="ps-3">#ID</th>
                     <th>Data</th>
                     <th>Cliente</th>
                     <th class="text-end">Total</th>
                     <th class="text-center">Estado</th>
-                    <th class="text-center" style="width: 300px;">Ações</th>
+                    <th class="text-center" style="width: 220px;">Ações</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (var item in Encomendas)
                 {
                     <tr>
-                        <td class="fw-bold">#@item.Id</td>
+                        <td class="fw-bold ps-3 text-secondary">#@item.Id</td>
                         <td>
-                            <div>@item.Data.ToShortDateString()</div>
+                            <div class="fw-bold">@item.Data.ToShortDateString()</div>
                             <small class="text-muted">@item.Data.ToShortTimeString()</small>
                         </td>
                         <td>
                             @if (item.Cliente != null)
                             {
-                                <div>@item.Cliente.Email</div>
-                                <small class="text-muted">NIF: @item.Cliente.Nif</small>
+                                <div class="text-truncate" style="max-width: 200px;" title="@item.Cliente.UserName">
+                                    @item.Cliente.Email
+                                </div>
+                                <small class="text-muted">NIF: @(item.Cliente.Nif ?? "-")</small>
                             }
                             else
                             {
-
-                                <span class="text-muted">Anónimo</span>
+                                <span class="text-muted fst-italic">Anónimo</span>
                             }
                         </td>
-                        <td class="text-end fw-bold text-primary">@item.ValorTotal.ToString("C2")</td>
+                        <td class="text-end fw-bold text-dark">@item.ValorTotal.ToString("C2")</td>
 
                         <td class="text-center">
                             @if (item.Estado == "Pendente")
                             {
-                                <span class="badge bg-warning text-dark">Pendente</span>
+                                <span class="badge rounded-pill bg-warning text-dark border border-warning">Pendente</span>
                             }
                             else if (item.Estado == "Pago")
                             {
-
-                                <span class="badge bg-info text-dark">Pago</span>
+                                <span class="badge rounded-pill bg-success border border-success">Pago</span>
                             }
                             else if (item.Estado == "Enviado")
                             {
-
-                                <span class="badge bg-success">Enviado</span>
+                                <span class="badge rounded-pill bg-primary border border-primary">Enviado</span>
                             }
                             else if (item.Estado == "Cancelado")
                             {
-
-                                <span class="badge bg-danger">Cancelado</span>
+                                <span class="badge rounded-pill bg-danger border border-danger">Cancelado</span>
                             }
                             else
                             {
-
-                                <span class="badge bg-secondary">@item.Estado</span>
+                                <span class="badge rounded-pill bg-secondary">@item.Estado</span>
                             }
                         </td>
 
-                        <td class="text-center">
-                            <div class="btn-group">
+                        <td>
+                            <div class="d-flex gap-2">
+
+                                <a href="encomendas/details?id=@item.Id" class="btn btn-sm btn-info text-dark shadow-sm" title="Ver Detalhes">
+                                    <i class="bi bi-eye"></i> Detalhes
+                                </a>
+
                                 @if (item.Estado == "Pendente")
                                 {
-                                    <button class="btn btn-sm btn-success" @onclick='() => MudarEstado(item, "Pago")' title="Confirmar Pagamento">
+                                    <button class="btn btn-sm btn-success shadow-sm" @onclick='() => ConfirmarPagamento(item)'>
                                         <i class="bi bi-check-lg"></i> Confirmar
                                     </button>
-                                    <button class="btn btn-sm btn-danger" @onclick='() => MudarEstado(item, "Cancelado")' title="Rejeitar">
-                                        <i class="bi bi-x-lg"></i>
+
+                                    <button class="btn btn-sm btn-outline-danger shadow-sm" @onclick='() => AnularEncomenda(item)'>
+                                        <i class="bi bi-x-lg"></i> Rejeitar
                                     </button>
                                 }
                                 else if (item.Estado == "Pago")
                                 {
-                                    <button class="btn btn-sm btn-primary" @onclick="() => ExpedirEncomenda(item)" title="Enviar Produtos">
-                                        <i class="bi bi-box-seam"></i> Expedir
+                                    <button class="btn btn-sm btn-primary shadow-sm" @onclick="() => ExpedirEncomenda(item)">
+                                        <i class="bi bi-truck"></i> Expedir
                                     </button>
                                 }
-
-                                <a href="encomendas/details?id=@item.Id" class="btn btn-sm btn-light border" title="Ver Detalhes">
-                                    <i class="bi bi-eye"></i>
-                                </a>
                             </div>
                         </td>
                     </tr>
@@ -135,7 +141,6 @@ else
         </table>
     </div>
 }
-
 @code {
     private List<Encomenda>? Encomendas;
     private string FiltroEstado { get; set; } = "";
@@ -148,60 +153,85 @@ else
     private async Task CarregarEncomendas()
     {
         using var context = DbFactory.CreateDbContext();
-
-        var query = context.Encomendas
-            .Include(e => e.Cliente) // Inclui dados do cliente
-            .AsQueryable();
+        var query = context.Encomendas.Include(e => e.Cliente).AsQueryable();
 
         if (!string.IsNullOrEmpty(FiltroEstado))
         {
             query = query.Where(e => e.Estado == FiltroEstado);
         }
 
-        // Ordena por data (mais recentes primeiro)
         Encomendas = await query.OrderByDescending(e => e.Data).ToListAsync();
     }
 
-    private async Task MudarEstado(Encomenda enc, string novoEstado)
+    // LÓGICA DE CONFIRMAR PAGAMENTO (COM ATUALIZAÇÃO DE STOCK)
+    // Igual à API: O stock sai quando o dinheiro entra.
+    private async Task ConfirmarPagamento(Encomenda enc)
+    {
+        using var context = DbFactory.CreateDbContext();
+
+        // Carrega encomenda E Itens
+        var encDb = await context.Encomendas
+            .Include(e => e.Itens)
+            .FirstOrDefaultAsync(e => e.Id == enc.Id);
+
+        if (encDb != null && encDb.Estado == "Pendente")
+        {
+            // 1. Tentar deduzir Stock
+            bool stockSuficiente = true;
+
+            foreach (var item in encDb.Itens)
+            {
+                var produto = await context.Produtos.FindAsync(item.ProdutoId);
+                if (produto != null)
+                {
+                    if (produto.Stock < item.Quantidade)
+                    {
+                        stockSuficiente = false;
+                        await JS.InvokeVoidAsync("alert", $"Erro: Stock insuficiente para o produto {produto.Nome}.");
+                        break;
+                    }
+                    produto.Stock -= item.Quantidade; // Abate stock
+                    context.Entry(produto).State = EntityState.Modified; // Força gravação
+                }
+            }
+
+            if (stockSuficiente)
+            {
+                encDb.Estado = "Pago";
+                await context.SaveChangesAsync();
+                await CarregarEncomendas();
+            }
+        }
+    }
+
+    // LÓGICA DE EXPEDIR (Só muda estado, stock já saiu no pagamento)
+    private async Task ExpedirEncomenda(Encomenda enc)
     {
         using var context = DbFactory.CreateDbContext();
         var encDb = await context.Encomendas.FindAsync(enc.Id);
 
-        if (encDb != null)
+        if (encDb != null && encDb.Estado == "Pago")
         {
-            encDb.Estado = novoEstado;
+            encDb.Estado = "Enviado";
             await context.SaveChangesAsync();
             await CarregarEncomendas();
         }
     }
 
-    // --- PONTO CRÍTICO: EXPEDIÇÃO E ATUALIZAÇÃO DE STOCKS ---
-    private async Task ExpedirEncomenda(Encomenda enc)
+    // LÓGICA DE ANULAR
+    private async Task AnularEncomenda(Encomenda enc)
     {
-        using var context = DbFactory.CreateDbContext();
-
-        // Carregar a encomenda e os seus ITENS (Produtos)
-        var encDb = await context.Encomendas
-            .Include(e => e.Itens) // Fundamental para saber o que abater
-            .FirstOrDefaultAsync(e => e.Id == enc.Id);
-
-        if (encDb != null && encDb.Estado == "Pago")
+        bool confirm = await JS.InvokeAsync<bool>("confirm", "Tem a certeza que deseja anular esta encomenda?");
+        if (confirm)
         {
-            // Loop para abater Stock
-            // foreach (var item in encDb.Itens)
-            // {
-            //     var produto = await context.Produtos.FindAsync(item.ProdutoId);
-            //     if (produto != null)
-            //     {
-            //         // Abate a quantidade vendida
-            //         produto.Stock = produto.Stock - item.Quantidade;
-            //     }
-            // }
-
-            // Mudar estado para Enviado
-            encDb.Estado = "Enviado";
-            await context.SaveChangesAsync();
-            await CarregarEncomendas();
+            using var context = DbFactory.CreateDbContext();
+            var encDb = await context.Encomendas.FindAsync(enc.Id);
+            if (encDb != null)
+            {
+                encDb.Estado = "Cancelado";
+                await context.SaveChangesAsync();
+                await CarregarEncomendas();
+            }
         }
     }
 }

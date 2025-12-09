@@ -2,77 +2,146 @@
 @using Microsoft.EntityFrameworkCore
 @using GestaoLoja.Entities
 @using GestaoLoja.Data
+@using Microsoft.AspNetCore.Authorization
 @inject IDbContextFactory<GestaoLoja.Data.ApplicationDbContext> DbFactory
 @inject NavigationManager NavigationManager
 
-<PageTitle>Details</PageTitle>
+@attribute [Authorize(Roles = "Administrador, Funcionario")]
 
-<h1>Details</h1>
+<PageTitle>Detalhes de Encomenda #@Id</PageTitle>
 
-<div>
-    <h4>Encomenda</h4>
-    <hr />
-    @if (encomenda is null)
-    {
-        <p><em>Loading...</em></p>
-    }
-    else
-    {
-        <dl class="row">
-            <dt class="col-sm-2">Data</dt>
-            <dd class="col-sm-10">@encomenda.Data</dd>
-            <dt class="col-sm-2">ValorTotal</dt>
-            <dd class="col-sm-10">@encomenda.ValorTotal</dd>
-            <dt class="col-sm-2">Estado</dt>
-            <dd class="col-sm-10">@encomenda.Estado</dd>
-            <dt class="col-sm-2">Cliente</dt>
-            <dd class="col-sm-10">@(encomenda.Cliente?.Email ?? "N/A")</dd>
-        </dl>
-
-        <h4>Produtos Comprados</h4>
-        <table class="table table-sm table-bordered">
-            <thead>
-                <tr>
-                    <th>Produto</th>
-                    <th>Qtd</th>
-                    <th>Preço Unit.</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var item in encomenda.Itens)
-                {
-                    <tr>
-                        <td>@(item.Produto?.Nome ?? "Produto Removido")</td>
-                        <td>@item.Quantidade</td>
-                        <td>@item.PrecoUnitario</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-
-        <div>
-            <a href="@($"/encomendas/edit?id={encomenda.Id}")">Edit</a> |
-            <a href="@($"/encomendas")">Back to List</a>
-        </div>
-    }
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-receipt"></i> Encomenda #@Id</h1>
+    <a href="encomendas" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar à Lista
+    </a>
 </div>
 
-@code {
-    private Encomenda? encomenda;
+@if (Encomenda is null)
+{
+    <div class="d-flex justify-content-center">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">A carregar...</span>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card mb-4 shadow-sm">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4 border-end">
+                    <h5 class="text-muted mb-3">Informação</h5>
+                    <p><strong>Data:</strong> @Encomenda.Data.ToShortDateString() às @Encomenda.Data.ToShortTimeString()</p>
+                    <p>
+                        <strong>Estado:</strong>
+                        @if (Encomenda.Estado == "Pago")
+                        {
+                            <span class="badge bg-success">Pago</span>
+                        }
+                        else if (Encomenda.Estado == "Pendente")
+                        {
 
+                            <span class="badge bg-warning text-dark">Pendente</span>
+                        }
+                        else if (Encomenda.Estado == "Enviado")
+                        {
+
+                            <span class="badge bg-primary">Enviado</span>
+                        }
+                        else
+                        {
+
+                            <span class="badge bg-secondary">@Encomenda.Estado</span>
+                        }
+                    </p>
+                </div>
+
+                <div class="col-md-4 border-end">
+                    <h5 class="text-muted mb-3">Cliente</h5>
+                    <p><strong>Nome/Email:</strong> @(Encomenda.Cliente?.UserName ?? "Desconhecido")</p>
+                    <p><strong>NIF:</strong> @(Encomenda.Cliente?.Nif ?? "Não preenchido")</p>
+                    <p><strong>Telefone:</strong> @(Encomenda.Cliente?.PhoneNumber ?? "-")</p>
+                </div>
+
+                <div class="col-md-4 text-center d-flex flex-column justify-content-center">
+                    <h5 class="text-muted">Valor Total</h5>
+                    <h2 class="text-primary fw-bold">@Encomenda.ValorTotal.ToString("C2")</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h4 class="mb-3">Itens Comprados</h4>
+    <div class="card shadow-sm border-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 80px;">Img</th>
+                        <th>Produto</th>
+                        <th class="text-center">Qtd</th>
+                        <th class="text-end">Preço Unit.</th>
+                        <th class="text-end">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Encomenda.Itens)
+                    {
+                        <tr>
+                            <td>
+                                @if (!string.IsNullOrEmpty(item.Produto?.UrlImagem))
+                                {
+                                    <img src="@item.Produto.UrlImagem" class="rounded border" style="width: 50px; height: 50px; object-fit: cover;" />
+                                }
+                                else
+                                {
+                                    <div class="bg-light rounded border d-flex align-items-center justify-content-center text-muted" style="width: 50px; height: 50px;">
+                                        <i class="bi bi-image"></i>
+                                    </div>
+                                }
+                            </td>
+                            <td>
+                                <div class="fw-bold">@(item.Produto?.Nome ?? "Produto Removido")</div>
+                                <small class="text-muted">Ref: @item.ProdutoId</small>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-light text-dark border">@item.Quantidade</span>
+                            </td>
+                            <td class="text-end text-muted">@item.PrecoUnitario.ToString("C2")</td>
+                            <td class="text-end fw-bold">@((item.PrecoUnitario * item.Quantidade).ToString("C2"))</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <td colspan="4" class="text-end fw-bold fs-5">TOTAL A PAGAR:</td>
+                        <td class="text-end fw-bold fs-5 text-primary">@Encomenda.ValorTotal.ToString("C2")</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
     [SupplyParameterFromQuery]
     public int Id { get; set; }
+
+    public Encomenda? Encomenda { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
         using var context = DbFactory.CreateDbContext();
-        encomenda = await context.Encomendas
+
+        // Carregar TUDO: Encomenda -> Cliente, Encomenda -> Itens -> Produto
+        Encomenda = await context.Encomendas
             .Include(e => e.Cliente)
             .Include(e => e.Itens)
-                .ThenInclude(i => i.Produto) // <--- CRÍTICO: Carregar os produtos
+                .ThenInclude(i => i.Produto)
             .FirstOrDefaultAsync(m => m.Id == Id);
 
-        if (encomenda is null)
+        if (Encomenda is null)
         {
             NavigationManager.NavigateTo("notfound");
         }
