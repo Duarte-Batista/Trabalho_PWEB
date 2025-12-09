@@ -95,28 +95,71 @@ else
             </tbody>
         </table>
     </div>
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <button class="btn btn-outline-primary" @onclick="PaginaAnterior" disabled="@(PaginaAtual == 1)">
+            <i class="bi bi-chevron-left"></i> Anterior
+        </button>
+        <span>Página <strong>@PaginaAtual</strong> de <strong>@TotalPaginas</strong> (Total: @TotalItens)</span>
+        <button class="btn btn-outline-primary" @onclick="PaginaProxima" disabled="@(PaginaAtual == TotalPaginas)">
+            Próxima <i class="bi bi-chevron-right"></i>
+        </button>
+    </div>
 }
 
 @code {
     private List<Produto>? ProdutosPendentes;
 
-    protected override async Task OnInitializedAsync()
-    {
-        await CarregarPendentes();
-    }
+    private int PaginaAtual = 1;
+    private int TamanhoPagina = 10;
+    private int TotalItens = 0;
+    private int TotalPaginas => TotalItens == 0 ? 1 : (int)Math.Ceiling((double)TotalItens / TamanhoPagina);
 
-    private async Task CarregarPendentes()
+    private async Task CarregarProdutosPendentes()
     {
         using var context = DbFactory.CreateDbContext();
 
-        // Carrega APENAS os Pendentes
-        ProdutosPendentes = await context.Produtos
-            .Include(p => p.Fornecedor)
+        // Filtra APENAS os Pendentes
+        var query = context.Produtos
             .Include(p => p.Categoria)
-            .Where(p => p.Estado == EstadoProduto.Pendente)
+            .Include(p => p.Fornecedor)
+            .Where(p => p.Estado == EstadoProduto.Pendente);
+
+        TotalItens = await query.CountAsync();
+
+        ProdutosPendentes = await query
             .OrderBy(p => p.Id)
+            .Skip((PaginaAtual - 1) * TamanhoPagina)
+            .Take(TamanhoPagina)
             .ToListAsync();
     }
+
+    private async Task PaginaAnterior()
+    {
+        if (PaginaAtual > 1) { PaginaAtual--; await CarregarProdutosPendentes(); }
+    }
+
+    private async Task PaginaProxima()
+    {
+        if (PaginaAtual < TotalPaginas) { PaginaAtual++; await CarregarProdutosPendentes(); }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarProdutosPendentes();
+    }
+
+    // private async Task CarregarPendentes()
+    // {
+    //     using var context = DbFactory.CreateDbContext();
+
+    //     // Carrega APENAS os Pendentes
+    //     ProdutosPendentes = await context.Produtos
+    //         .Include(p => p.Fornecedor)
+    //         .Include(p => p.Categoria)
+    //         .Where(p => p.Estado == EstadoProduto.Pendente)
+    //         .OrderBy(p => p.Id)
+    //         .ToListAsync();
+    // }
 
     private async Task AprovarProduto(Produto p)
     {
@@ -134,7 +177,7 @@ else
             await context.SaveChangesAsync();
 
             // Recarrega a lista para o produto desaparecer desta página
-            await CarregarPendentes();
+            await CarregarProdutosPendentes();
         }
     }
 
@@ -150,7 +193,7 @@ else
         {
             produtoDb.Estado = EstadoProduto.Inativo;
             await context.SaveChangesAsync();
-            await CarregarPendentes();
+            await CarregarProdutosPendentes();
         }
     }
 }

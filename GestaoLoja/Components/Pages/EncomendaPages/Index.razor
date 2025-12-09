@@ -27,7 +27,7 @@
                 </select>
             </div>
             <div class="col-md-3">
-                <button class="btn btn-secondary w-100" @onclick="CarregarEncomendas">
+                <button class="btn btn-secondary w-100" @onclick="AtualizarComFiltro">
                     <i class="bi bi-filter"></i> Atualizar
                 </button>
             </div>
@@ -140,15 +140,24 @@ else
             </tbody>
         </table>
     </div>
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <button class="btn btn-outline-primary" @onclick="PaginaAnterior" disabled="@(PaginaAtual == 1)">
+            <i class="bi bi-chevron-left"></i> Anterior
+        </button>
+        <span>Página <strong>@PaginaAtual</strong> de <strong>@TotalPaginas</strong> (Total: @TotalItens)</span>
+        <button class="btn btn-outline-primary" @onclick="PaginaProxima" disabled="@(PaginaAtual == TotalPaginas)">
+            Próxima <i class="bi bi-chevron-right"></i>
+        </button>
+    </div>
 }
 @code {
     private List<Encomenda>? Encomendas;
     private string FiltroEstado { get; set; } = "";
 
-    protected override async Task OnInitializedAsync()
-    {
-        await CarregarEncomendas();
-    }
+    private int PaginaAtual = 1;
+    private int TamanhoPagina = 10;
+    private int TotalItens = 0;
+    private int TotalPaginas => TotalItens == 0 ? 1 : (int)Math.Ceiling((double)TotalItens / TamanhoPagina);
 
     private async Task CarregarEncomendas()
     {
@@ -160,7 +169,39 @@ else
             query = query.Where(e => e.Estado == FiltroEstado);
         }
 
-        Encomendas = await query.OrderByDescending(e => e.Data).ToListAsync();
+        // Contar (já com o filtro aplicado)
+        TotalItens = await query.CountAsync();
+
+        // Paginar
+        Encomendas = await query
+            .OrderByDescending(e => e.Data)
+            .Skip((PaginaAtual - 1) * TamanhoPagina)
+            .Take(TamanhoPagina)
+            .ToListAsync();
+    }
+
+    // Quando o utilizador muda o filtro ou clica em "Atualizar", reinicia a paginação
+    private async Task AtualizarComFiltro()
+    {
+        PaginaAtual = 1; // Reset para a primeira página
+        await CarregarEncomendas();
+    }
+
+    // Altera o botão de atualizar no HTML para chamar AtualizarComFiltro em vez de CarregarEncomendas
+
+    private async Task PaginaAnterior()
+    {
+        if (PaginaAtual > 1) { PaginaAtual--; await CarregarEncomendas(); }
+    }
+
+    private async Task PaginaProxima()
+    {
+        if (PaginaAtual < TotalPaginas) { PaginaAtual++; await CarregarEncomendas(); }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarEncomendas();
     }
 
     // LÓGICA DE CONFIRMAR PAGAMENTO (COM ATUALIZAÇÃO DE STOCK)
@@ -218,7 +259,6 @@ else
         }
     }
 
-    // LÓGICA DE ANULAR
     private async Task AnularEncomenda(Encomenda enc)
     {
         bool confirm = await JS.InvokeAsync<bool>("confirm", "Tem a certeza que deseja anular esta encomenda?");
