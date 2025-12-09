@@ -24,6 +24,11 @@
                 <label for="username" class="form-label">Username</label>
             </div>
             <div class="form-floating mb-3">
+                <InputText @bind-Value="Input.Nif" class="form-control" placeholder="NIF" />
+                <label>NIF</label>
+                <ValidationMessage For="() => Input.Nif" class="text-danger" />
+            </div>
+            <div class="form-floating mb-3">
                 <InputText @bind-Value="Input.PhoneNumber" class="form-control" placeholder="Please enter your phone number." />
                 <label for="phone-number" class="form-label">Phone number</label>
                 <ValidationMessage For="() => Input.PhoneNumber" class="text-danger" />
@@ -50,6 +55,8 @@
         username = await UserManager.GetUserNameAsync(user);
         phoneNumber = await UserManager.GetPhoneNumberAsync(user);
 
+        Input.Nif ??= user.Nif;
+
         Input.PhoneNumber ??= phoneNumber;
     }
 
@@ -64,6 +71,17 @@
             }
         }
 
+        if (Input.Nif != user.Nif)
+        {
+            user.Nif = Input.Nif;
+            var updateResult = await UserManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+            {
+                RedirectManager.RedirectToCurrentPageWithStatus("Erro ao atualizar NIF", HttpContext);
+                return;
+            }
+        }
+
         await SignInManager.RefreshSignInAsync(user);
         RedirectManager.RedirectToCurrentPageWithStatus("Your profile has been updated", HttpContext);
     }
@@ -73,5 +91,8 @@
         [Phone]
         [Display(Name = "Phone number")]
         public string? PhoneNumber { get; set; }
+
+        [Display(Name = "NIF")]
+        public string? Nif { get; set; }
     }
 }

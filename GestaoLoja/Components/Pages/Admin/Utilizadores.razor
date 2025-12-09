@@ -36,7 +36,16 @@ else
             {
                 <tr>
                     <td>@user.Email</td>
-                    <td>@user.Nif</td>
+                    <td>
+                        @if (!string.IsNullOrEmpty(user.Nif))
+                        {
+                            <span class="font-monospace">@user.Nif</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted small">-</span>
+                        }
+                    </td>
                     <td>
                         <span class="badge bg-info text-dark">@user.TipoUtilizador</span>
                     </td>
