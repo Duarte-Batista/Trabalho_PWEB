@@ -4,7 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using GestaoLoja.DTOs;
+using API.DTOs;
 using GestaoLoja.Data;
 
 namespace API.Controllers

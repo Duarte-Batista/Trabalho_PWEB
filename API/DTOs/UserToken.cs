@@ -1,4 +1,4 @@
-﻿namespace GestaoLoja.DTOs
+﻿namespace API.DTOs
 {
 	public class UserToken
 	{

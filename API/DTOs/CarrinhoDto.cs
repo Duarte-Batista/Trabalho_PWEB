@@ -1,4 +1,4 @@
-﻿namespace GestaoLoja.DTOs
+﻿namespace API.DTOs
 {
 	// O que o cliente envia quando clica em "Finalizar Compra"
 	public class CriarEncomendaDto

@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using GestaoLoja.Data;
 using GestaoLoja.Entities;
-using GestaoLoja.DTOs;
+using API.DTOs;
 
 namespace API.Controllers
 {
