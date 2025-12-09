@@ -2,8 +2,10 @@
 @using Microsoft.EntityFrameworkCore
 @using GestaoLoja.Entities
 @using GestaoLoja.Data
+@using System.IO
 @inject IDbContextFactory<GestaoLoja.Data.ApplicationDbContext> DbFactory
 @inject NavigationManager NavigationManager
+@inject IWebHostEnvironment WebEnvironment
 
 <PageTitle>Editar Categoria</PageTitle>
 
@@ -41,15 +43,49 @@ else
                         }
                     </InputSelect>
                 </div>
-
                 <div class="mb-3">
+                    <label class="form-label fw-bold">Imagem (Opcional):</label>
+                    <InputFile OnChange="CarregarNovaImagem" class="form-control" accept=".png,.jpg,.jpeg" />
+                </div>
+
+                @* <div class="mb-3">
                     <label class="form-label">Ordem:</label>
                     <InputNumber @bind-Value="Categoria.Ordem" class="form-control" />
-                </div>
+                </div> *@
 
                 <button type="submit" class="btn btn-primary">Guardar</button>
                 <a href="/categoria" class="btn btn-secondary">Cancelar</a>
             </EditForm>
+        </div>
+        <div class="col-md-5">
+            <div class="card h-100">
+                <div class="card-header text-center fw-bold">Imagem</div>
+
+                <div class="card-body d-flex flex-column align-items-center justify-content-center">
+
+                    @if (!string.IsNullOrEmpty(PreviewImagem))
+                    {
+                        <img src="@PreviewImagem" class="img-fluid rounded border mb-3"
+                             style="max-height: 250px; width: auto; object-fit: contain;" />
+
+                        <span class="badge bg-success px-3 py-2">Nova Imagem Selecionada</span>
+                    }
+                    else if (!string.IsNullOrEmpty(Categoria.UrlImagem))
+                    {
+                        <img src="@Categoria.UrlImagem" class="img-fluid rounded border mb-3"
+                             style="max-height: 250px; width: auto; object-fit: contain;" />
+
+                        <span class="badge bg-secondary px-3 py-2">Imagem Atual</span>
+                    }
+                    else
+                    {
+                        <div class="text-muted py-5">
+                            <i class="bi bi-image fs-1 d-block mb-2"></i>
+                            Sem imagem definida
+                        </div>
+                    }
+                </div>
+            </div>
         </div>
     </div>
 }
@@ -62,6 +98,10 @@ else
     public Categoria? Categoria { get; set; }
 
     public List<Categoria> ListaCategorias { get; set; } = new();
+
+    private IBrowserFile? ficheiroUpload;
+    private string PreviewImagem = "";
+    private const long MaxFileSize = 5 * 1024 * 1024;
 
     protected override async Task OnInitializedAsync()
     {
@@ -78,8 +118,45 @@ else
         if (Categoria is null) NavigationManager.NavigateTo("notfound");
     }
 
+    private async Task CarregarNovaImagem(InputFileChangeEventArgs e)
+    {
+        ficheiroUpload = e.File;
+
+        // Criar preview para o utilizador ver o que escolheu
+        var format = "image/png";
+        var resizedImage = await ficheiroUpload.RequestImageFileAsync(format, 400, 400);
+        using var stream = resizedImage.OpenReadStream(MaxFileSize);
+        using var ms = new MemoryStream();
+
+        await stream.CopyToAsync(ms);
+        var buffer = ms.ToArray();
+
+        PreviewImagem = $"data:{format};base64,{Convert.ToBase64String(buffer)}";
+    }
+
     public async Task UpdateCategoria()
     {
+        if (ficheiroUpload != null)
+        {
+            try
+            {
+                var nomeFicheiro = Path.GetExtension(ficheiroUpload.Name);
+                var pastaDestino = Path.Combine(WebEnvironment.WebRootPath, "img", "produtos");
+                Directory.CreateDirectory(pastaDestino);
+                var caminhoCompleto = Path.Combine(pastaDestino, nomeFicheiro);
+                if (File.Exists(caminhoCompleto))
+                {
+                    // Se já existe, adicionamos um prefixo "novo_" para não estragar o anterior
+                    nomeFicheiro = "novo_" + nomeFicheiro;
+                    caminhoCompleto = Path.Combine(pastaDestino, nomeFicheiro);
+                }
+
+                await using FileStream fs = new(caminhoCompleto, FileMode.Create);
+                await ficheiroUpload.OpenReadStream(MaxFileSize).CopyToAsync(fs);
+                Categoria!.UrlImagem = $"/img/categoria/{nomeFicheiro}";
+            }
+            catch (Exception ex) { Console.WriteLine("Erro upload: " + ex.Message); }
+        }
         using var context = DbFactory.CreateDbContext();
         context.Attach(Categoria!).State = EntityState.Modified;
         await context.SaveChangesAsync();

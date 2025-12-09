@@ -4,8 +4,10 @@
 @using Microsoft.AspNetCore.Identity
 @using GestaoLoja.Entities
 @using GestaoLoja.Data
+@using System.IO
 @inject IDbContextFactory<GestaoLoja.Data.ApplicationDbContext> DbFactory
 @inject NavigationManager NavigationManager
+@inject IWebHostEnvironment WebEnvironment
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<ApplicationUser> UserManager
 
@@ -94,9 +96,25 @@
                 <ValidationMessage For="() => Produto.ImageUrl" class="text-danger" />
             </div>
 
+            <div class="mb-3">
+                <label class="form-label fw-bold">Imagem do Produto:</label>
+                <InputFile OnChange="CarregarImagem" class="form-control" accept=".png,.jpg,.jpeg,.webp" />
+            </div>
+
             <button type="submit" class="btn btn-primary">Criar Produto</button>
             <a href="/produtos" class="btn btn-secondary">Cancelar</a>
         </EditForm>
+    </div>
+    <div class="col-md-4 text-center">
+        @if (!string.IsNullOrEmpty(PreviewImagem))
+        {
+            <div class="card">
+                <div class="card-header">Pré-visualização</div>
+                <div class="card-body">
+                    <img src="@PreviewImagem" class="img-fluid rounded" style="max-height: 300px;" />
+                </div>
+            </div>
+        }
     </div>
 </div>
 
@@ -104,17 +122,17 @@
 @code {
     [SupplyParameterFromForm]
     private Produto Produto { get; set; } = new();
-
     public List<Categoria> ListaCategorias { get; set; } = new();    //lista para guardar as categorias disponiveis
     public List<ApplicationUser> ListaUtilizadores { get; set; } = new();
     public string MensagemErro { get; set; } = "";
+
+    private string PreviewImagem = "";
+    private long MaxFileSize = 1024 * 1024 * 5;
 
     protected override async Task OnInitializedAsync()
     {
         using var context = DbFactory.CreateDbContext();
         ListaCategorias = await context.Categorias.ToListAsync();
-
-        // Carregar Utilizadores para a Dropdown
         ListaUtilizadores = await context.Users.ToListAsync();
 
         // Se for Fornecedor a criar, pré-seleciona-o
@@ -127,6 +145,37 @@
             {
                 Produto.FornecedorId = currentUser.Id;
             }
+        }
+    }
+
+    private async Task CarregarImagem(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var ficheiro = e.File;
+
+            // Gerar nome único
+            var nomeFicheiro = Guid.NewGuid().ToString() + Path.GetExtension(ficheiro.Name);
+
+            // Definir caminho (wwwroot/img/produtos)
+            var pasta = Path.Combine(WebEnvironment.WebRootPath, "img", "produtos");
+            if (!Directory.Exists(pasta)) Directory.CreateDirectory(pasta);
+
+            var caminhoCompleto = Path.Combine(pasta, nomeFicheiro);
+
+            // Guardar no disco
+            await using FileStream fs = new(caminhoCompleto, FileMode.Create);
+            await ficheiro.OpenReadStream(MaxFileSize).CopyToAsync(fs);
+
+            // Atualizar o objeto Produto
+            Produto.UrlImagem = $"/img/produtos/{nomeFicheiro}";
+
+            // Atualizar Preview
+            PreviewImagem = Produto.UrlImagem;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erro no upload: {ex.Message}");
         }
     }
 

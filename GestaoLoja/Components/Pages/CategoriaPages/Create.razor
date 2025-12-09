@@ -2,8 +2,10 @@
 @using Microsoft.EntityFrameworkCore
 @using GestaoLoja.Data
 @using GestaoLoja.Entities
+@using System.IO
 @inject IDbContextFactory<GestaoLoja.Data.ApplicationDbContext> DbFactory
 @inject NavigationManager NavigationManager
+@inject IWebHostEnvironment WebEnvironment
 
 <PageTitle>Criar Categoria</PageTitle>
 
@@ -32,28 +34,64 @@
                 <div class="form-text">Selecione apenas se esta for uma sub-categoria (ex: "Ouro" dentro de "Moedas").</div>
             </div>
 
-            <div class="mb-3">
+            @* <div class="mb-3">
                 <label class="form-label">Ordem de Exibição:</label>
                 <InputNumber @bind-Value="Categoria.Ordem" class="form-control" />
+            </div> *@
+
+            <div class="mb-3">
+                <label class="form-label">Imagem da Categoria:</label>
+                <InputFile OnChange="CarregarImagem" class="form-control" accept=".png,.jpg,.jpeg" />
             </div>
+
             <button type="submit" class="btn btn-primary">Criar</button>
             <a href="/categoria" class="btn btn-secondary">Voltar</a>
         </EditForm>
+    </div>
+    <div class="col-md-4">
+        @if (!string.IsNullOrEmpty(PreviewImagem))
+        {
+            <img src="@PreviewImagem" class="img-fluid rounded border" style="max-height: 200px;" />
+        }
     </div>
 </div>
 
 @code {
     [SupplyParameterFromForm]
     public Categoria Categoria { get; set; } = new();
-
     // Lista para preencher a dropdown
     public List<Categoria> ListaCategorias { get; set; } = new();
+    private string PreviewImagem = "";
 
     protected override async Task OnInitializedAsync()
     {
         using var context = DbFactory.CreateDbContext();
-        // Carregamos todas as categorias para poder escolher uma como Pai
         ListaCategorias = await context.Categorias.OrderBy(c => c.Nome).ToListAsync();
+    }
+
+    private async Task CarregarImagem(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var ficheiro = e.File;
+            var nomeFicheiro = Guid.NewGuid().ToString() + Path.GetExtension(ficheiro.Name);
+
+            // Pasta diferente: categorias
+            var pasta = Path.Combine(WebEnvironment.WebRootPath, "img", "categorias");
+            if (!Directory.Exists(pasta)) Directory.CreateDirectory(pasta);
+
+            var caminho = Path.Combine(pasta, nomeFicheiro);
+
+            await using FileStream fs = new(caminho, FileMode.Create);
+            await ficheiro.OpenReadStream(1024 * 1024 * 5).CopyToAsync(fs);
+
+            Categoria.UrlImagem = $"/img/categorias/{nomeFicheiro}";
+            PreviewImagem = Categoria.UrlImagem;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erro: {ex.Message}");
+        }
     }
 
     public async Task AddCategoria()

@@ -38,6 +38,11 @@ builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.Requ
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
+builder.Services.AddSignalR(e =>
+{
+    e.MaximumReceiveMessageSize = 10 * 1024 * 1024;
+});
+
 var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {

@@ -98,7 +98,16 @@ else
                 @foreach (var produto in Produtos)
                 {
                     <tr>
-                        <td>@produto.ImageUrl</td>
+                        <td style="width: 60px;">
+                            @if (!string.IsNullOrEmpty(produto.UrlImagem))
+                            {
+                                <img src="@produto.UrlImagem" style="width: 50px; height: 50px; object-fit: cover;" class="rounded" />
+                            }
+                            else
+                            {
+                                <span class="text-muted small">N/A</span>
+                            }
+                        </td>
                         <td>@produto.Nome</td>
                         <td>@(produto.Categoria?.Nome ?? "-")</td>
                         <td class="text-center">
