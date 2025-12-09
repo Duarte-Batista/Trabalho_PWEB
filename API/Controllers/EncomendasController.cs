@@ -70,7 +70,7 @@ namespace API.Controllers
 			{
 				ClienteId = userId,
 				Data = DateTime.Now,
-				Estado = "Pendente", // Começa pendente até pagar
+				Estado = "Pendente",
 				ValorTotal = 0,
 				Itens = new List<ItemEncomenda>()
 			};

@@ -10,5 +10,6 @@ namespace GestaoLoja.Data
         public DbSet<Categoria> Categorias { get; set; }
         public DbSet<Encomenda> Encomendas { get; set; }
         public DbSet<ItemEncomenda> ItensEncomenda { get; set; }
+        public DbSet<Favorito> Favoritos { get; set; }
     }
 }
