@@ -55,6 +55,20 @@ else
                             <span class="badge bg-secondary">@Encomenda.Estado</span>
                         }
                     </p>
+                    <div class="mt-3 p-2 bg-light rounded border">
+                        <strong>Modo de Entrega:</strong><br />
+                        @if (Encomenda.ModoEntrega == "Envio")
+                        {
+                            <span class="text-primary"><i class="bi bi-truck"></i> Envio ao Domicílio</span>
+                            <div class="small text-muted mt-1">
+                                @Encomenda.MoradaEnvio
+                            </div>
+                        }
+                        else
+                        {
+                            <span class="text-success"><i class="bi bi-shop"></i> Levantamento em Loja</span>
+                        }
+                    </div>
                 </div>
 
                 <div class="col-md-4 border-end">
@@ -114,9 +128,19 @@ else
                     }
                 </tbody>
                 <tfoot class="table-light">
+                    @if (Encomenda.ValorPortes > 0)
+                    {
+                        <tr>
+                            <td colspan="4" class="text-end text-muted">Portes de Envio:</td>
+                            <td class="text-end text-muted">@Encomenda.ValorPortes.ToString("C2")</td>
+                        </tr>
+                    }
+
                     <tr>
                         <td colspan="4" class="text-end fw-bold fs-5">TOTAL A PAGAR:</td>
-                        <td class="text-end fw-bold fs-5 text-primary">@Encomenda.ValorTotal.ToString("C2")</td>
+                        <td class="text-end fw-bold fs-5 text-primary">
+                            @((Encomenda.ValorTotal + Encomenda.ValorPortes).ToString("C2"))
+                        </td>
                     </tr>
                 </tfoot>
             </table>

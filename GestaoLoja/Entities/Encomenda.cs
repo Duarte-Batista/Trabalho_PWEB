@@ -18,5 +18,9 @@ namespace GestaoLoja.Entities
 		public ApplicationUser? Cliente { get; set; }
 
 		public List<ItemEncomenda> Itens { get; set; } = new();
+
+		public string ModoEntrega { get; set; } = "Levantamento";
+		public decimal ValorPortes { get; set; } = 0;
+		public string? MoradaEnvio { get; set; }
 	}
 }

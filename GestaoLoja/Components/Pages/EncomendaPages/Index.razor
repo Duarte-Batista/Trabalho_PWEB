@@ -265,12 +265,34 @@ else
         if (confirm)
         {
             using var context = DbFactory.CreateDbContext();
-            var encDb = await context.Encomendas.FindAsync(enc.Id);
+
+            // Carregar encomenda E os itens (importante para devolver stock)
+            var encDb = await context.Encomendas
+                .Include(e => e.Itens)
+                .FirstOrDefaultAsync(e => e.Id == enc.Id);
+
             if (encDb != null)
             {
+                // SE JÁ ESTAVA PAGA -> TEMOS DE DEVOLVER O STOCK
+                if (encDb.Estado == "Pago" || encDb.Estado == "Enviado")
+                {
+                    foreach (var item in encDb.Itens)
+                    {
+                        var produto = await context.Produtos.FindAsync(item.ProdutoId);
+                        if (produto != null)
+                        {
+                            produto.Stock += item.Quantidade; // Devolve ao stock
+                            context.Entry(produto).State = EntityState.Modified;
+                        }
+                    }
+                }
+
                 encDb.Estado = "Cancelado";
                 await context.SaveChangesAsync();
                 await CarregarEncomendas();
+
+                // Feedback visual (opcional)
+                await JS.InvokeVoidAsync("alert", "Encomenda anulada (stock reposto se aplicável).");
             }
         }
     }
