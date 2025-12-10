@@ -41,7 +41,7 @@
                 </div>
             </div>
 
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label small fw-bold text-secondary">Categoria</label>
                 <select class="form-select" @bind="CategoriaIdFiltro">
                     <option value="0">Todas</option>
@@ -52,7 +52,7 @@
                 </select>
             </div>
 
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label small fw-bold text-secondary">Tipo</label>
                 <select class="form-select" @bind="FiltroTipo">
                     <option value="0">Todos</option>
@@ -60,7 +60,16 @@
                     <option value="2">Coleção</option>
                 </select>
             </div>
-
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-secondary">Estado</label>
+                <select class="form-select" @bind="FiltroEstado">
+                    <option value="">Todos</option>
+                    @foreach (var estado in Enum.GetValues(typeof(EstadoProduto)))
+                    {
+                        <option value="@estado">@estado</option>
+                    }
+                </select>
+            </div>
             <div class="col-md-2">
                 <button class="btn btn-secondary w-100" @onclick="CarregarProdutos">
                     Filtrar
@@ -164,6 +173,7 @@ else
     // Filtros
     private string TermoPesquisa { get; set; } = "";
     private int CategoriaIdFiltro { get; set; } = 0;
+    private EstadoProduto? FiltroEstado { get; set; } = null;
 
     // 0 = Todos, 1 = Venda, 2 = Coleção
     private int FiltroTipo { get; set; } = 0;
@@ -216,6 +226,11 @@ else
         {
             // Quer apenas Coleção
             query = query.Where(p => p.DisponivelParaVenda == false);
+        }
+
+        if (FiltroEstado.HasValue)
+        {
+            query = query.Where(p => p.Estado == FiltroEstado.Value);
         }
 
         // Contar e Paginar
