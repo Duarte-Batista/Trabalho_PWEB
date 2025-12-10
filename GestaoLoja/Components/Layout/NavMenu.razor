@@ -15,37 +15,43 @@
     <nav class="flex-column" style="display: flex; flex-direction: column; min-height: 100%;">
 
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+            <NavLink class="nav-link d-flex align-items-center" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill me-3 fs-5" aria-hidden="true" style="transform: translateY(-12px);"></span>
+                <span>Home</span>
             </NavLink>
         </div>
 
         <AuthorizeView>
             <Authorized>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="categoria">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Categorias
+                    <NavLink class="nav-link d-flex align-items-center" href="categoria">
+                        <span class="bi bi-tags-fill me-3 fs-5" aria-hidden="true" style="transform: translateY(-12px);"></span>
+                        <span>Categorias</span>
                     </NavLink>
                 </div>
 
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="produtos">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Produtos
+                    <NavLink class="nav-link d-flex align-items-center" href="produtos">
+                        <span class="bi bi-box-seam-fill me-3 fs-5" aria-hidden="true" style="transform: translateY(-12px);"></span>
+                        <span>Produtos</span>
                     </NavLink>
                 </div>
-                
             </Authorized>
         </AuthorizeView>
+
         <AuthorizeView Roles="Administrador, Funcionario">
             <Authorized>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="encomendas">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Encomendas
+                    <NavLink class="nav-link d-flex align-items-center" href="encomendas">
+                        <span class="bi bi-cart4 me-3 fs-5" aria-hidden="true" style="transform: translateY(-12px);"></span>
+                        <span>Encomendas</span>
                     </NavLink>
                 </div>
+
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="admin/utilizadores">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Utilizadores
+                    <NavLink class="nav-link d-flex align-items-center" href="admin/utilizadores">
+                        <span class="bi bi-people-fill me-3 fs-5" aria-hidden="true" style="transform: translateY(-12px);"></span>
+                        <span>Utilizadores</span>
                     </NavLink>
                 </div>
             </Authorized>
@@ -54,16 +60,18 @@
         <AuthorizeView Roles="Administrador">
             <Authorized>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="produtos/aprovacao">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Aprovações
+                    <NavLink class="nav-link d-flex align-items-center" href="produtos/aprovacao">
+                        <span class="bi bi-check-circle-fill me-3 fs-5" aria-hidden="true" style="transform: translateY(-12px);"></span>
+                        <span>Aprovações</span>
                     </NavLink>
                 </div>
             </Authorized>
         </AuthorizeView>
 
         <div class="nav-item px-3 mt-auto pb-3">
-            <NavLink class="nav-link" href="sobre">
-                <span class="bi bi-info-circle-fill-nav-menu" aria-hidden="true"></span> Sobre
+            <NavLink class="nav-link d-flex align-items-center" href="sobre">
+                <span class="bi bi-info-circle-fill me-3 fs-5" aria-hidden="true" style="transform: translateY(-12px);"></span>
+                <span>Sobre</span>
             </NavLink>
         </div>
 
