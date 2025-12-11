@@ -5,11 +5,11 @@ using System.Security.Claims;
 using GestaoLoja.Data;
 using GestaoLoja.Entities;
 
-namespace API.Controllers
+namespace MyCOLL.API.Controllers
 {
 	[Route("api/[controller]")]
 	[ApiController]
-	[Authorize] 
+	[Authorize] // Obrigatório estar logado
 	public class FavoritosController : ControllerBase
 	{
 		private readonly ApplicationDbContext _context;
@@ -19,24 +19,30 @@ namespace API.Controllers
 			_context = context;
 		}
 
-		// GET: api/Favoritos (Ver a minha lista)
+		// GET: api/Favoritos?page=1&pageSize=10 (COM PAGINAÇÃO)
+		// Antes devolvia tudo. Agora devolve apenas 10 de cada vez para a App ser rápida.
 		[HttpGet]
-		public async Task<ActionResult<IEnumerable<Produto>>> GetMeusFavoritos()
+		public async Task<ActionResult<IEnumerable<Produto>>> GetMeusFavoritos([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
 		{
 			var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-			// Vai buscar os favoritos e INCLUI os dados do produto
-			var produtosFavoritos = await _context.Favoritos
+			var query = _context.Favoritos
 				.Where(f => f.ClienteId == userId)
-				.Include(f => f.Produto) // Carrega o produto
+				.OrderByDescending(f => f.DataAdicionado) // Os mais recentes primeiro
+				.Include(f => f.Produto)
 					.ThenInclude(p => p.Categoria)
-				.Select(f => f.Produto!) // Seleciona apenas o objeto Produto para enviar
+				.Select(f => f.Produto!); // Seleciona o objeto Produto
+
+			// Aplica a paginação
+			var produtos = await query
+				.Skip((page - 1) * pageSize)
+				.Take(pageSize)
 				.ToListAsync();
 
-			return produtosFavoritos;
+			return produtos;
 		}
 
-		// GET: api/Favoritos/ids (Saber quais os IDs que gosto)
+		// GET: api/Favoritos/ids (Para pintar os corações na lista)
 		[HttpGet("ids")]
 		public async Task<ActionResult<IEnumerable<int>>> GetIdsFavoritos()
 		{
@@ -48,39 +54,75 @@ namespace API.Controllers
 				.ToListAsync();
 		}
 
-		// POST: api/Favoritos/toggle/5 (Adicionar ou Remover)
+		// POST: api/Favoritos/toggle/5 (O tal botão inteligente: Adiciona/Remove)
 		[HttpPost("toggle/{produtoId}")]
 		public async Task<IActionResult> ToggleFavorito(int produtoId)
 		{
 			var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-			// Verificar se o produto existe
+			// Verificar se produto existe
 			var produto = await _context.Produtos.FindAsync(produtoId);
-			if (produto == null) return NotFound("Produto não existe.");
+			if (produto == null) return NotFound("Produto não encontrado.");
 
-			// Verificar se já é favorito
-			var favoritoExistente = await _context.Favoritos
+			var favorito = await _context.Favoritos
 				.FirstOrDefaultAsync(f => f.ClienteId == userId && f.ProdutoId == produtoId);
 
-			if (favoritoExistente != null)
+			if (favorito != null)
 			{
-				// JÁ EXISTE -> REMOVER (Desgostar)
-				_context.Favoritos.Remove(favoritoExistente);
+				// Já existe -> Remove
+				_context.Favoritos.Remove(favorito);
 				await _context.SaveChangesAsync();
-				return Ok(new { message = "Removido dos favoritos", isFavorito = false });
+				return Ok(new { message = "Removido", isFavorito = false });
 			}
 			else
 			{
-				// NÃO EXISTE -> ADICIONAR (Gostar)
-				var novoFavorito = new Favorito
-				{
-					ClienteId = userId!,
-					ProdutoId = produtoId
-				};
-				_context.Favoritos.Add(novoFavorito);
+				// Não existe -> Cria
+				var novo = new Favorito { ClienteId = userId!, ProdutoId = produtoId };
+				_context.Favoritos.Add(novo);
 				await _context.SaveChangesAsync();
-				return Ok(new { message = "Adicionado aos favoritos", isFavorito = true });
+				return Ok(new { message = "Adicionado", isFavorito = true });
 			}
+		}
+
+		// DELETE: api/Favoritos/5 (NOVO - Remoção Explícita)
+		// Útil para quando fazes "Swipe to Delete" na App
+		[HttpDelete("{produtoId}")]
+		public async Task<IActionResult> RemoveFavorito(int produtoId)
+		{
+			var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+			var favorito = await _context.Favoritos
+				.FirstOrDefaultAsync(f => f.ClienteId == userId && f.ProdutoId == produtoId);
+
+			if (favorito == null)
+			{
+				// Se já não existia, tudo bem, o objetivo era não ter lá nada.
+				return NotFound("Este produto não estava nos favoritos.");
+			}
+
+			_context.Favoritos.Remove(favorito);
+			await _context.SaveChangesAsync();
+
+			return NoContent(); // 204 No Content (Sucesso padrão para Delete)
+		}
+
+		// DELETE: api/Favoritos/todos (NOVO - Limpar Lista)
+		[HttpDelete("todos")]
+		public async Task<IActionResult> ClearFavoritos()
+		{
+			var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+			// Vai buscar todos os favoritos deste user
+			var meusFavoritos = await _context.Favoritos
+				.Where(f => f.ClienteId == userId)
+				.ToListAsync();
+
+			if (!meusFavoritos.Any()) return Ok("A lista já estava vazia.");
+
+			_context.Favoritos.RemoveRange(meusFavoritos);
+			await _context.SaveChangesAsync();
+
+			return Ok(new { message = $"{meusFavoritos.Count} favoritos removidos." });
 		}
 	}
 }

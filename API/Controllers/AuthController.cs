@@ -1,13 +1,15 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using API.DTOs;
 using GestaoLoja.Data;
+using GestaoLoja.Entities;
+using API.DTOs;    
 
-namespace API.Controllers
+namespace MyCOLL.API.Controllers
 {
 	[Route("api/[controller]")]
 	[ApiController]
@@ -26,7 +28,7 @@ namespace API.Controllers
 			_configuration = configuration;
 		}
 
-		// POST: api/auth/register
+		// POST: /identity/register
 		[HttpPost("register")]
 		public async Task<ActionResult<UserToken>> Register([FromBody] RegisterDto model)
 		{
@@ -34,8 +36,8 @@ namespace API.Controllers
 			{
 				UserName = model.Email,
 				Email = model.Email,
-				Nif = model.Nif,
-				Morada = model.Morada,
+				Nif = model.Nif,     
+				Morada = model.Morada, 
 				TipoUtilizador = "Cliente",
 				EstadoConta = "Pendente"
 			};
@@ -44,31 +46,107 @@ namespace API.Controllers
 
 			if (!result.Succeeded) return BadRequest(result.Errors);
 
-			// Adicionar Role
 			await _userManager.AddToRoleAsync(user, "Cliente");
 
-			// Gerar Token
+			// Nota: Retorna token, mas se estiver pendente o login falhará depois.
+			// Opcional: Podes retornar apenas Ok("Registo efetuado. Aguarde aprovação.")
 			return await GerarToken(user);
 		}
 
-		// POST: api/auth/login
+		// POST: /identity/login
 		[HttpPost("login")]
 		public async Task<ActionResult<UserToken>> Login([FromBody] LoginDto model)
 		{
 			var user = await _userManager.FindByEmailAsync(model.Email);
-			if (user == null) return BadRequest("Login inválido.");
+			if (user == null) return Unauthorized("Login inválido.");
 
+			// A tua verificação de segurança extra
 			if (user.EstadoConta != "Ativo")
 			{
-				return Unauthorized("Conta pendente ou suspensa.");
+				return Unauthorized("A sua conta ainda está pendente de aprovação ou suspensa.");
 			}
 
 			var result = await _signInManager.CheckPasswordSignInAsync(user, model.Password, false);
-			if (!result.Succeeded) return BadRequest("Login inválido.");
+			if (!result.Succeeded) return Unauthorized("Login inválido.");
 
 			return await GerarToken(user);
 		}
 
+		// POST: /identity/refresh (Simulação simples - Renovar Token)
+		[HttpPost("refresh")]
+		[Authorize]
+		public async Task<ActionResult<UserToken>> Refresh()
+		{
+			// Obtém o utilizador atual pelo Token que enviou
+			var user = await _userManager.GetUserAsync(User);
+			if (user == null || user.EstadoConta != "Ativo") return Unauthorized();
+
+			// Gera um token novo com validade renovada
+			return await GerarToken(user);
+		}
+
+		// GET: /identity/manage/info (Ver dados do perfil)
+		[HttpGet("manage/info")]
+		[Authorize]
+		public async Task<ActionResult<UserInfoResult>> GetInfo()
+		{
+			var user = await _userManager.GetUserAsync(User);
+			if (user == null) return NotFound();
+
+			return new UserInfoResult
+			{
+				Email = user.Email ?? "",
+				Nif = user.Nif ?? "",
+				Morada = user.Morada ?? "",
+				PhoneNumber = user.PhoneNumber ?? "",
+				IsEmailConfirmed = user.EmailConfirmed
+			};
+		}
+
+		// POST: /identity/manage/info (Atualizar dados do perfil)
+		[HttpPost("manage/info")]
+		[Authorize]
+		public async Task<ActionResult<UserInfoResult>> PostInfo([FromBody] UserInfoResult model)
+		{
+			var user = await _userManager.GetUserAsync(User);
+			if (user == null) return NotFound();
+
+			// Atualiza os campos (exceto Email que é sensível)
+			user.Nif = model.Nif;
+			user.Morada = model.Morada;
+			user.PhoneNumber = model.PhoneNumber;
+
+			var result = await _userManager.UpdateAsync(user);
+			if (!result.Succeeded) return BadRequest(result.Errors);
+
+			return Ok(model);
+		}
+
+		// POST: /identity/manage/password (Mudar password)
+		[HttpPost("manage/password")]
+		[Authorize]
+		public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDTO model)
+		{
+			var user = await _userManager.GetUserAsync(User);
+			if (user == null) return NotFound();
+
+			var result = await _userManager.ChangePasswordAsync(user, model.CurrentPassword, model.NewPassword);
+
+			if (!result.Succeeded) return BadRequest(result.Errors);
+
+			return Ok(new { message = "Password alterada com sucesso." });
+		}
+
+		// POST: /identity/forgotPassword (Simulação)
+		[HttpPost("forgotPassword")]
+		public IActionResult ForgotPassword([FromBody] object model)
+		{
+			// Num sistema real, aqui enviava o email.
+			// Para este projeto, só simula que o pedido foi aceite
+			return Ok(new { message = "Se o email existir, enviámos um link de recuperação." });
+		}
+
+		// --- MÉTODOS AUXILIARES ---
 		private async Task<UserToken> GerarToken(ApplicationUser user)
 		{
 			var claims = new List<Claim>
@@ -85,8 +163,7 @@ namespace API.Controllers
 				claims.Add(new Claim(ClaimTypes.Role, role));
 			}
 
-			// Lê a chave do appsettings.json da API
-			var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? "chave_super_secreta_fallback_12345"));
+			var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? "chave_super_secreta_fallback"));
 			var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 			var expiration = DateTime.Now.AddDays(1);
 

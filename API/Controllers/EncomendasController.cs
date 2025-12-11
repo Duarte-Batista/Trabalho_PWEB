@@ -154,5 +154,33 @@ namespace API.Controllers
 
 			return Ok(new { message = "Pagamento efetuado e stock atualizado!", novoEstado = "Pago" });
 		}
+
+		// PUT: api/Encomendas/5 (Atualizar Estado Manualmente - Admin)
+		[HttpPut("{id}")]
+		[Authorize(Roles = "Administrador")]
+		public async Task<IActionResult> UpdateEstadoEncomenda(int id, [FromBody] string novoEstado)
+		{
+			var encomenda = await _context.Encomendas.FindAsync(id);
+			if (encomenda == null) return NotFound();
+
+			encomenda.Estado = novoEstado;
+			await _context.SaveChangesAsync();
+
+			return Ok(new { message = $"Estado alterado para {novoEstado}" });
+		}
+
+		// DELETE: api/Encomendas/5 (Apagar Encomenda - Admin)
+		[HttpDelete("{id}")]
+		[Authorize(Roles = "Administrador")]
+		public async Task<IActionResult> DeleteEncomenda(int id)
+		{
+			var encomenda = await _context.Encomendas.FindAsync(id);
+			if (encomenda == null) return NotFound();
+
+			_context.Encomendas.Remove(encomenda);
+			await _context.SaveChangesAsync();
+
+			return NoContent();
+		}
 	}
 }
