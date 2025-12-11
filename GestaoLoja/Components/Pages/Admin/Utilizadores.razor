@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using GestaoLoja.Data
+@using GestaoLoja.Entities
 @using Microsoft.AspNetCore.Components.Authorization
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject UserManager<ApplicationUser> UserManager
@@ -14,6 +15,28 @@
 
 <h1>Gestão de Utilizadores</h1>
 
+<div class="card mb-4 bg-light shadow-sm border-0">
+    <div class="card-body p-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-secondary">Estado da Conta:</label>
+                <select class="form-select" @bind="FiltroEstado">
+                    <option value="">Todos</option>
+                    <option value="Pendente">Pendentes (Aguardam Aprovação)</option>
+                    <option value="Ativo">Ativos</option>
+                    <option value="Suspenso">Suspensos</option>
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <button class="btn btn-secondary w-100" @onclick="AtualizarComFiltro">
+                    <i class="bi bi-filter"></i> Filtrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @if (Users == null)
 {
     <p><em>Loading...</em></p>
@@ -23,6 +46,7 @@ else
     <table class="table table-hover">
         <thead>
             <tr>
+                @* <th>#ID</th> *@
                 <th>Email</th>
                 <th>NIF</th>
                 <th>Cargo Atual</th>
@@ -35,6 +59,7 @@ else
             @foreach (var user in Users)
             {
                 <tr>
+                    @* <td class="fw-bold ps-3 text-secondary">@user.Id</td> *@
                     <td>@user.Email</td>
                     <td>
                         @if (!string.IsNullOrEmpty(user.Nif))
@@ -102,16 +127,22 @@ else
                         {
                             @if (SouAdmin || (SouFuncionario && (user.TipoUtilizador == "Cliente" || user.TipoUtilizador == "Fornecedor")))
                             {
-                                @if (user.EstadoConta != "Ativo")
+                                @if (user.EstadoConta == "Pendente")
                                 {
-                                    <button class="btn btn-sm btn-success" @onclick='() => AlterarEstado(user, "Ativo")'>
+                                    <button class="btn btn-sm btn-success" @onclick='() => AlterarEstado(user, "Ativo")' title="Aprovar">
                                         <i class="bi bi-check-lg"></i> Aprovar
                                     </button>
                                 }
-                                else
+                                else if (user.EstadoConta == "Ativo")
                                 {
-                                    <button class="btn btn-sm btn-warning" @onclick='() => AlterarEstado(user, "Pendente")'>
+                                    <button class="btn btn-sm btn-warning" @onclick='() => AlterarEstado(user, "Suspenso")' title="Suspender">
                                         <i class="bi bi-pause-fill"></i> Suspender
+                                    </button>
+                                }
+                                else if (user.EstadoConta == "Suspenso")
+                                {
+                                    <button class="btn btn-sm btn-outline-success" @onclick='() => AlterarEstado(user, "Ativo")' title="Reativar">
+                                        <i class="bi bi-arrow-counterclockwise"></i> Reativar
                                     </button>
                                 }
                             }
@@ -138,7 +169,9 @@ else
 
 @code {
     private List<ApplicationUser>? Users;
-    
+
+    private string FiltroEstado { get; set; } = "";
+
     // Variáveis para controlar Permissões
     private string CurrentUserEmail = "";
     private bool SouAdmin = false;
@@ -152,7 +185,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // 1. Descobrir quem sou eu e os meus poderes
+        // Descobrir quem sou eu e os meus poderes
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var userPrincipal = authState.User;
 
@@ -163,12 +196,22 @@ else
         await CarregarUsers();
     }
 
+    private async Task AtualizarComFiltro()
+    {
+        PaginaAtual = 1;
+        await CarregarUsers();
+    }
+
     private async Task CarregarUsers()
     {
         using var context = DbFactory.CreateDbContext();
         var query = context.Users.AsQueryable();
 
-        // Contar Total (para saber quantas páginas existem)
+        if (!string.IsNullOrEmpty(FiltroEstado))
+        {
+            query = query.Where(u => u.EstadoConta == FiltroEstado);
+        }
+
         TotalItens = await query.CountAsync();
 
         // Aplicar Paginação (Saltar X e Pegar Y)

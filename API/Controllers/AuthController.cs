@@ -146,6 +146,31 @@ namespace MyCOLL.API.Controllers
 			return Ok(new { message = "Se o email existir, enviámos um link de recuperação." });
 		}
 
+		// PUT: /identity/users/{id}/estado
+		[HttpPut("users/{id}/estado")]
+		[Authorize(Roles = "Administrador")]
+		public async Task<IActionResult> ChangeUserState(string id, [FromBody] string novoEstado)
+		{
+			var user = await _userManager.FindByIdAsync(id);
+			if (user == null) return NotFound("Utilizador não encontrado.");
+
+			// Validação simples para evitar estados inventados
+			var estadosValidos = new[] { "Ativo", "Pendente", "Suspenso" };
+			if (!estadosValidos.Contains(novoEstado))
+			{
+				return BadRequest("Estado inválido. Use: Ativo, Pendente ou Suspenso.");
+			}
+
+			user.EstadoConta = novoEstado;
+
+			// O UpdateAsync grava na BD
+			var result = await _userManager.UpdateAsync(user);
+
+			if (!result.Succeeded) return BadRequest(result.Errors);
+
+			return Ok(new { message = $"Estado do utilizador {user.Email} alterado para {novoEstado}." });
+		}
+
 		// --- MÉTODOS AUXILIARES ---
 		private async Task<UserToken> GerarToken(ApplicationUser user)
 		{
